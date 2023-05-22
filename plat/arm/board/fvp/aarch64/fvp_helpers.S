@@ -27,7 +27,7 @@
 	 * that the request has gone through.
 	 * -----------------------------------------------------
 	 */
-func plat_secondary_cold_boot_setup
+func plat_secondary_cold_boot_setup /*冷启动过程中的从核相关处理*/
 #ifndef EL3_PAYLOAD_BASE
 	/* ---------------------------------------------
 	 * Power down this cpu.

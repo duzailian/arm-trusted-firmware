@@ -19,16 +19,16 @@
 	 * to indicate where we are
 	 * ---------------------------------------------
 	 */
-func plat_report_exception
-	mrs	x1, CurrentEl
-	lsr	x1, x1, #MODE_EL_SHIFT
-	lsl	x1, x1, #V2M_SYS_LED_EL_SHIFT
-	lsl	x0, x0, #V2M_SYS_LED_EC_SHIFT
-	mov	x2, #(SECURE << V2M_SYS_LED_SS_SHIFT)
+func plat_report_exception/* 报告异常 */
+	mrs	x1, CurrentEl /* 获取当前异常等级 */
+	lsr	x1, x1, #MODE_EL_SHIFT /* 逻辑右移2bits得到当前的异常等级 */
+	lsl	x1, x1, #V2M_SYS_LED_EL_SHIFT /* 异常等级逻辑左移1bit */
+	lsl	x0, x0, #V2M_SYS_LED_EC_SHIFT /* status code逻辑左移3bits */
+	mov	x2, #(SECURE << V2M_SYS_LED_SS_SHIFT)/* 可信为0  */
 	orr	x0, x0, x2
 	orr	x0, x0, x1
 	mov	x1, #V2M_SYSREGS_BASE
 	add	x1, x1, #V2M_SYS_LED
-	str	w0, [x1]
+	str	w0, [x1] /*写入寄存器*/
 	ret
 endfunc plat_report_exception

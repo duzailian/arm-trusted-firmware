@@ -256,7 +256,7 @@
 		 * then it means it is a warm boot so jump to this address.
 		 * -------------------------------------------------------------
 		 */
-		bl	plat_get_my_entrypoint
+		bl	plat_get_my_entrypoint /*检查是否为冷启动*/
 		cbz	x0, do_cold_boot
 		br	x0
 

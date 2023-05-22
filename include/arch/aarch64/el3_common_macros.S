@@ -270,11 +270,11 @@
  * why this macro is parameterised ; each parameter allows to enable/disable
  * some actions.
  *
- *  _init_sctlr:
+ *  _init_sctlr:/*是否需要初始化SCTLR寄存器*/
  *	Whether the macro needs to initialise SCTLR_EL3, including configuring
  *      the endianness of data accesses.
  *
- *  _warm_boot_mailbox:
+ *  _warm_boot_mailbox:/*是否需要检查冷启动or热启动*/
  *	Whether the macro needs to detect the type of boot (cold/warm). The
  *	detection is based on the platform entrypoint address : if it is zero
  *	then it is a cold boot, otherwise it is a warm boot. In the latter case,
@@ -412,7 +412,7 @@
 		cbnz	w0, do_primary_cold_boot
 
 		/* This is a cold boot on a secondary CPU */
-		bl	plat_secondary_cold_boot_setup
+		bl	plat_secondary_cold_boot_setup /*冷启动过程中的从核相关处理*/
 		/* plat_secondary_cold_boot_setup() is not supposed to return */
 		bl	el3_panic
 
