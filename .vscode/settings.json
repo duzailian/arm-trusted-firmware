@@ -1,0 +1,11 @@
+{
+    "clangd.path": "/usr/bin/clangd",// clangd路径
+    "clangd.arguments": ["-log=verbose",
+                            "-pretty",
+                            "--background-index",
+                            "--query-driver=/usr/bin/clang", // 交叉编译时的编译器路径
+                            "--compile-commands-dir=./",  // compile_commands.json文件所在路径
+                            "--header-insertion=never", // 关闭自动添加头文件操作
+                        ],
+
+}

@@ -249,7 +249,7 @@ int load_auth_image(unsigned int image_id, image_info_t *image_data)
  * Print the content of an entry_point_info_t structure.
  ******************************************************************************/
 void print_entry_point_info(const entry_point_info_t *ep_info)
-{
+{// 打印entry_point信息
 	INFO("Entry point address = 0x%lx\n", ep_info->pc);
 	INFO("SPSR = 0x%x\n", ep_info->spsr);
 

@@ -78,19 +78,19 @@ end_vector_entry SErrorSPx
 	 * Lower EL using AArch64 : 0x400 - 0x600
 	 * -----------------------------------------------------
 	 */
-vector_entry SynchronousExceptionA64
+vector_entry SynchronousExceptionA64 /* 同步异常 */
 	/* Enable the SError interrupt */
-	msr	daifclr, #DAIF_ABT_BIT
+	msr	daifclr, #DAIF_ABT_BIT /* 清除SError 中断屏蔽位 */
 
-	str	x30, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_LR]
+	str	x30, [sp, #CTX_GPREGS_OFFSET + CTX_GPREG_LR] /* 入栈 */
 
 	/* Expect only SMC exceptions */
-	mrs	x30, esr_el3
-	ubfx	x30, x30, #ESR_EC_SHIFT, #ESR_EC_LENGTH
-	cmp	x30, #EC_AARCH64_SMC
-	b.ne	unexpected_sync_exception
+	mrs	x30, esr_el3 /* 将esr el3读入x30 */
+	ubfx	x30, x30, #ESR_EC_SHIFT, #ESR_EC_LENGTH /* 将x30寄存器中的bit[26:31]写入x30的bit[0:5] */
+	cmp	x30, #EC_AARCH64_SMC  /* 异常是否为SMC异常 */
+	b.ne	unexpected_sync_exception /* 非SMC异常 */
 
-	b	smc_handler64
+	b	smc_handler64 /*跳转到SMC处理函数*/
 end_vector_entry SynchronousExceptionA64
 
 vector_entry IrqA64
@@ -140,22 +140,22 @@ vector_entry SErrorA32
 end_vector_entry SErrorA32
 
 
-func smc_handler64
+func smc_handler64 /* SMC 指令 处理函数*/
 
 	/* ----------------------------------------------
 	 * Detect if this is a RUN_IMAGE or other SMC.
 	 * ----------------------------------------------
 	 */
-	mov	x30, #BL1_SMC_RUN_IMAGE
+	mov	x30, #BL1_SMC_RUN_IMAGE  /* BL2请求将控制权交给EL3 Runtime Software */
 	cmp	x30, x0
-	b.ne	smc_handler
+	b.ne	smc_handler /* 非BL1_SMC_RUN_IMAGE请求 */
 
 	/* ------------------------------------------------
 	 * Make sure only Secure world reaches here.
 	 * ------------------------------------------------
 	 */
-	mrs	x30, scr_el3
-	tst	x30, #SCR_NS_BIT
+	mrs	x30, scr_el3 /* 读取SCR EL3的值 */
+	tst	x30, #SCR_NS_BIT /*SCR_NS_BIT为1标识低于EL3的异常等级都非安全*/
 	b.ne	unexpected_sync_exception
 
 	/* ----------------------------------------------
@@ -163,9 +163,9 @@ func smc_handler64
 	 * SP_EL0 for the C runtime stack.
 	 * ----------------------------------------------
 	 */
-	ldr	x30, [sp, #CTX_EL3STATE_OFFSET + CTX_RUNTIME_SP]
-	msr	spsel, #MODE_SP_EL0
-	mov	sp, x30
+	ldr	x30, [sp, #CTX_EL3STATE_OFFSET + CTX_RUNTIME_SP] /*恢复x30原有的值*/
+	msr	spsel, #MODE_SP_EL0 /*将栈切换为SP_EL0*/
+	mov	sp, x30  /*将sp恢复为原x30的值*/
 
 	/* ---------------------------------------------------------------------
 	 * Pass EL3 control to next BL image.
@@ -173,19 +173,20 @@ func smc_handler64
 	 * structure describing the next BL image entrypoint.
 	 * ---------------------------------------------------------------------
 	 */
-	mov	x20, x1
+	mov	x20, x1 /* x1中保存entry_point_info_t结构体的起始地址 */
 
-	mov	x0, x20
-	bl	bl1_print_next_bl_ep_info
+	mov	x0, x20 /*将 entry_point_info_t 结构体指针作为第一个参数传给 bl1_print_next_bl_ep_info()*/
+	bl	bl1_print_next_bl_ep_info// 执行entry point打印
 
-	ldp	x0, x1, [x20, #ENTRY_POINT_INFO_PC_OFFSET]
-	msr	elr_el3, x0
-	msr	spsr_el3, x1
-	ubfx	x0, x1, #MODE_EL_SHIFT, #2
-	cmp	x0, #MODE_EL3
-	b.ne	unexpected_sync_exception
+	ldp	x0, x1, [x20, #ENTRY_POINT_INFO_PC_OFFSET] /* entry_point_info_t 中pc的偏移地址取两个字分别放入x0,x1*/
+	msr	elr_el3, x0 /*entry_point_info_t 中的pc给elr_el3 */
+	msr	spsr_el3, x1 /*entry_point_info_t 中的spsr给spsr_el3 */
+	 /* FIXME: 确认以下字段是否正确，疑似与currentEL寄存器值混用 */
+	ubfx	x0, x1, #MODE_EL_SHIFT, #2 /* SPSR寄存器中的bits[2:3] 位写入x0*/
+	cmp	x0, #MODE_EL3 /* EL3特权等级 */
+	b.ne	unexpected_sync_exception /* 特权等级非EL3，跳转到 unexpected_sync_exception */
 
-	bl	disable_mmu_icache_el3
+	bl	disable_mmu_icache_el3 // 关闭el3 icache
 	tlbi	alle3
 	dsb	ish /* ERET implies ISB, so it is not needed here */
 

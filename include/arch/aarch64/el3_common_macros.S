@@ -270,11 +270,11 @@
  * why this macro is parameterised ; each parameter allows to enable/disable
  * some actions.
  *
- *  _init_sctlr:/*是否需要初始化SCTLR寄存器*/
+ *  _init_sctlr:  是否需要初始化SCTLR寄存器
  *	Whether the macro needs to initialise SCTLR_EL3, including configuring
  *      the endianness of data accesses.
  *
- *  _warm_boot_mailbox:/*是否需要检查冷启动or热启动*/
+ *  _warm_boot_mailbox: 是否需要检查冷启动or热启动
  *	Whether the macro needs to detect the type of boot (cold/warm). The
  *	detection is based on the platform entrypoint address : if it is zero
  *	then it is a cold boot, otherwise it is a warm boot. In the latter case,

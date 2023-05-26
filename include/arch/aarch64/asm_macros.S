@@ -78,11 +78,11 @@
 	 * so that it inserts illegal AArch64 instructions. This increases
 	 * security, robustness and potentially facilitates debugging.
 	 */
-	.macro vector_entry  label, section_name=.vectors
-	.cfi_sections .debug_frame
-	.section \section_name, "ax"
-	.align 7, 0
-	.type \label, %function
+	.macro vector_entry  label, section_name=.vectors /* 声明ISR入口 */
+	.cfi_sections .debug_frame		/* 添加对 debug_frame 的call frame information的支持 */
+	.section \section_name, "ax" /* 指定section及section属性 */
+	.align 7, 0	/* 2的7次方对齐 pad填充0 */
+	.type \label, %function /* 将label指定为函数 */
 	.cfi_startproc
 	\label:
 	.endm

@@ -16,7 +16,7 @@
  * Constants that allow assembler code to access members of and the
  * 'entry_point_info' structure at their correct offsets.
  ******************************************************************************/
-#define ENTRY_POINT_INFO_PC_OFFSET	U(0x08)
+#define ENTRY_POINT_INFO_PC_OFFSET	U(0x08) // entry_point_info_t 中pc的偏移地址
 #ifdef __aarch64__
 #define ENTRY_POINT_INFO_ARGS_OFFSET	U(0x18)
 #else
