@@ -189,7 +189,7 @@ void arm_system_pwr_domain_resume(void)
  * the ARM_SHARED_RAM region
  ******************************************************************************/
 void plat_arm_program_trusted_mailbox(uintptr_t address)
-{
+{/*向mailbox地址写入指定地址，以便在warm reset之后能恢复到指定点继续执行*/
 	uintptr_t *mailbox = (void *) PLAT_ARM_TRUSTED_MAILBOX_BASE;
 
 	*mailbox = address;

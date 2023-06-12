@@ -244,7 +244,7 @@
 		isb
 	.endif /* _init_sctlr */
 
-#if DISABLE_MTPMU
+#if DISABLE_MTPMU /*关闭MTMPU功能(若支持)*/
 		bl	mtpmu_disable
 #endif
 
@@ -257,7 +257,7 @@
 		 * -------------------------------------------------------------
 		 */
 		bl	plat_get_my_entrypoint /*检查是否为冷启动*/
-		cbz	x0, do_cold_boot
+		cbz	x0, do_cold_boot /* 为0标识冷启动 */
 		br	x0
 
 	do_cold_boot:
