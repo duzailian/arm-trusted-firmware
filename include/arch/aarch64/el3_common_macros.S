@@ -310,7 +310,7 @@
 		_init_memory, _init_c_runtime, _exception_vectors,	\
 		_pie_fixup_size
 
-	.if \_init_sctlr
+	.if \_init_sctlr /*是否需要初始化sctrl寄存器*/
 		/* -------------------------------------------------------------
 		 * This is the initialisation of SCTLR_EL3 and so must ensure
 		 * that all fields are explicitly set rather than relying on hw.
@@ -319,17 +319,17 @@
 		 *
 		 * SCTLR.EE: Set the CPU endianness before doing anything that
 		 *  might involve memory reads or writes. Set to zero to select
-		 *  Little Endian.
+		 *  Little Endian.小端
 		 *
 		 * SCTLR_EL3.WXN: For the EL3 translation regime, this field can
 		 *  force all memory regions that are writeable to be treated as
 		 *  XN (Execute-never). Set to zero so that this control has no
-		 *  effect on memory access permissions.
+		 *  effect on memory access permissions.关闭可写空间不可执行(WXN写0)
 		 *
 		 * SCTLR_EL3.SA: Set to zero to disable Stack Alignment check.
-		 *
+		 *关闭栈对齐检测(SA写0)
 		 * SCTLR_EL3.A: Set to zero to disable Alignment fault checking.
-		 *
+		 *关闭非对齐访问检查(SA写0)
 		 * SCTLR.DSSBS: Set to zero to disable speculation store bypass
 		 *  safe behaviour upon exception entry to EL3.
 		 * -------------------------------------------------------------
