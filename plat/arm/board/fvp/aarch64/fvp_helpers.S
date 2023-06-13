@@ -92,7 +92,7 @@ func plat_get_my_entrypoint
 	mov_imm	x1, PWRC_BASE
 	str	w2, [x1, #PSYSR_OFF]
 	ldr	w2, [x1, #PSYSR_OFF]
-	ubfx	w2, w2, #PSYSR_WK_SHIFT, #PSYSR_WK_WIDTH
+	ubfx	w2, w2, #PSYSR_WK_SHIFT, #PSYSR_WK_WIDTH /*从w2提取以PSYSR_WK_SHIFT为最低位的PSYSR_WK_WIDTH位个数据*/
 	cmp	w2, #WKUP_PPONR
 	beq	warm_reset
 	cmp	w2, #WKUP_GICREQ
@@ -111,7 +111,7 @@ warm_reset:
 	 */
 	mov_imm	x0, PLAT_ARM_TRUSTED_MAILBOX_BASE
 	ldr	x0, [x0]
-	cbz	x0, _panic_handler
+	cbz	x0, _panic_handler /* 若mailbox 中的内容为NULL,陷入死循环 */
 	ret
 
 	/* ---------------------------------------------------------------------
