@@ -341,7 +341,7 @@
 	.endif /* _init_sctlr */
 
 #if DISABLE_MTPMU
-		bl	mtpmu_disable
+		bl	mtpmu_disable /*关闭MTMPU*/
 #endif
 
 	.if \_warm_boot_mailbox
@@ -352,7 +352,7 @@
 		 * then it means it is a warm boot so jump to this address.
 		 * -------------------------------------------------------------
 		 */
-		bl	plat_get_my_entrypoint
+		bl	plat_get_my_entrypoint /*获取warm reset后的入口点*/
 		cbz	x0, do_cold_boot
 		br	x0
 
@@ -360,7 +360,7 @@
 	.endif /* _warm_boot_mailbox */
 
 	.if \_pie_fixup_size
-#if ENABLE_PIE
+#if ENABLE_PIE /* Position-Independent Executable (位置无关运行)*/
 		/*
 		 * ------------------------------------------------------------
 		 * If PIE is enabled fixup the Global descriptor Table only

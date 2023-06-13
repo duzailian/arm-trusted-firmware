@@ -1457,7 +1457,7 @@ ifeq (${NEED_SCP_BL2},yes)
 $(eval $(call TOOL_ADD_IMG,scp_bl2,--scp-fw))
 endif
 
-ifeq (${NEED_BL31},yes)
+ifeq (${NEED_BL31},yes) # 添加编译BL31所需的目标
 BL31_SOURCES += ${SPD_SOURCES}
 # Sort BL31 source files to remove duplicates
 BL31_SOURCES := $(sort ${BL31_SOURCES})

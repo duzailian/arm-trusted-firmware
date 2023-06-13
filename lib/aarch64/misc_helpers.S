@@ -500,7 +500,7 @@ func fixup_gdt_reloc
 	mov	x6, x0
 	mov	x7, x1
 
-#if ENABLE_ASSERTIONS
+#if ENABLE_ASSERTIONS /*检查第一个参数(addr)是否对齐到4KB*/
 	/* Test if the limits are 4KB aligned */
 	orr	x0, x0, x1
 	tst	x0, #(PAGE_SIZE_MASK)
@@ -511,22 +511,23 @@ func fixup_gdt_reloc
 	 * Assume that this function is called within a page at the start of
 	 * fixup region.
 	 */
-	and	x2, x30, #~(PAGE_SIZE_MASK)
+	and	x2, x30, #~(PAGE_SIZE_MASK)/*将LR寄存器值对齐到4KB后写入x2*/
 	subs	x0, x2, x6	/* Diff(S) = Current Address - Compiled Address */
 	b.eq	3f		/* Diff(S) = 0. No relocation needed */
 
 	adrp	x1, __GOT_START__
-	add	x1, x1, :lo12:__GOT_START__
+	add	x1, x1, :lo12:__GOT_START__ /*加载__GOT_START__到x1*/
 	adrp	x2, __GOT_END__
-	add	x2, x2, :lo12:__GOT_END__
+	add	x2, x2, :lo12:__GOT_END__/*加载__GOT_END__到x2*/
 
 	/*
 	 * GOT is an array of 64_bit addresses which must be fixed up as
 	 * new_addr = old_addr + Diff(S).
 	 * The new_addr is the address currently the binary is executing from
 	 * and old_addr is the address at compile time.
+	 执行GOT表的重定向,new_addr = old_addr + Diff(S),new_addr为运行时地址,old_addr为链接时地址
 	 */
-1:	ldr	x3, [x1]
+1:	ldr	x3, [x1]  /*加载GOT中的指针*/
 
 	/* Skip adding offset if address is < lower limit */
 	cmp	x3, x6
@@ -538,15 +539,15 @@ func fixup_gdt_reloc
 	add	x3, x3, x0
 	str	x3, [x1]
 
-2:	add	x1, x1, #8
+2:	add	x1, x1, #8 /* 继续下一轮循环 */
 	cmp	x1, x2
 	b.lo	1b
 
 	/* Starting dynamic relocations. Use adrp/adr to get RELA_START and END */
 3:	adrp	x1, __RELA_START__
-	add	x1, x1, :lo12:__RELA_START__
+	add	x1, x1, :lo12:__RELA_START__ /*加载__RELA_START__到x1*/
 	adrp	x2, __RELA_END__
-	add	x2, x2, :lo12:__RELA_END__
+	add	x2, x2, :lo12:__RELA_END__ /*加载__RELA_END__到x1*/
 
 	/*
 	 * According to ELF-64 specification, the RELA data structure is as
@@ -589,7 +590,7 @@ func fixup_gdt_reloc
 	add	x4, x0, x4	/* Diff(S) + r_addend */
 	str	x4, [x3]
 
-2:	add	x1, x1, #24
+2:	add	x1, x1, #24 /*执行下一轮循环*/
 	cmp	x1, x2
 	b.lo	1b
 	ret

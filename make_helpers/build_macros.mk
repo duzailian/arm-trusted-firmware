@@ -324,7 +324,7 @@ $(OBJ): $(2) $(filter-out %.d,$(MAKEFILE_LIST)) | lib$(3)_dirs
 
 endef
 
-
+# 用于编译c文件的宏定义
 # MAKE_C builds a C source file and generates the dependency file
 #   $(1) = output directory
 #   $(2) = source file (%.c)
@@ -407,20 +407,23 @@ define MAKE_LIB_OBJS
         $(and $(REMAIN),$(error Unexpected source files present: $(REMAIN)))
 endef
 
-
+# 编译c和汇编文件
 # MAKE_OBJS builds both C and assembly source files
 #   $(1) = output directory
 #   $(2) = list of source files (both C and assembly)
 #   $(3) = BL stage
 define MAKE_OBJS
+        # 编译C文件
         $(eval C_OBJS := $(filter %.c,$(2)))
         $(eval REMAIN := $(filter-out %.c,$(2)))
         $(eval $(foreach obj,$(C_OBJS),$(call MAKE_C,$(1),$(obj),$(3))))
 
+        # 对汇编文件进行汇编
         $(eval S_OBJS := $(filter %.S,$(REMAIN)))
         $(eval REMAIN := $(filter-out %.S,$(REMAIN)))
         $(eval $(foreach obj,$(S_OBJS),$(call MAKE_S,$(1),$(obj),$(3))))
 
+        # 存在除.S/.c之外的其他文件,报错
         $(and $(REMAIN),$(error Unexpected source files present: $(REMAIN)))
 endef
 
@@ -501,7 +504,7 @@ endef
 #   $(2) = FIP command line option (if empty, image will not be included in the FIP)
 #   $(3) = FIP prefix (optional) (if FWU_, target is fwu_fip instead of fip)
 #   $(4) = BL encryption flag (optional) (0, 1)
-define MAKE_BL
+define MAKE_BL #用于生成用于构建BLx镜像的目标和选项的宏定义
         $(eval BUILD_DIR  := ${BUILD_PLAT}/$(1))
         $(eval BL_SOURCES := $($(call uppercase,$(1))_SOURCES))
         $(eval SOURCES    := $(BL_SOURCES) $(BL_COMMON_SOURCES) $(PLAT_BL_COMMON_SOURCES))
