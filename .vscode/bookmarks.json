@@ -1,0 +1,14 @@
+{
+	"files": [
+		{
+			"path": "include/lib/cpus/aarch64/cpu_macros.S",
+			"bookmarks": [
+				{
+					"line": 161,
+					"column": 10,
+					"label": "cpu_ops结构体"
+				}
+			]
+		}
+	]
+}
