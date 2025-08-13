@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, Arm Limited. All rights reserved.
+ * Copyright (c) 2021-2025, Arm Limited. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -24,8 +24,6 @@
  * CPU Extended Control register specific definitions.
  ******************************************************************************/
 #define CORTEX_A78C_CPUECTLR_EL1		        S3_0_C15_C1_4
-#define CORTEX_A78C_CPUECTLR_EL1_BIT_6		        (ULL(1) << 6)
-#define CORTEX_A78C_CPUECTLR_EL1_BIT_7		        (ULL(1) << 7)
 #define CORTEX_A78C_CPUECTLR_EL1_MM_ASP_EN		(ULL(1) << 53)
 
 /*******************************************************************************
@@ -46,5 +44,10 @@
 #define CORTEX_A78C_IMP_CPUPCR_EL3			S3_6_C15_C8_1
 #define CORTEX_A78C_IMP_CPUPOR_EL3			S3_6_C15_C8_2
 #define CORTEX_A78C_IMP_CPUPMR_EL3			S3_6_C15_C8_3
+
+/*******************************************************************************
+ * CPU Auxiliary Control register 5 specific definitions.
+ ******************************************************************************/
+#define CORTEX_A78C_ACTLR5_EL1				S3_0_C15_C9_0
 
 #endif /* CORTEX_A78C_H */

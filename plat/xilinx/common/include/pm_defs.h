@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2019-2022, Xilinx, Inc. All rights reserved.
- * Copyright (c) 2022-2023, Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2022-2025, Advanced Micro Devices, Inc. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -18,10 +18,10 @@
 
 /* State arguments of the self suspend */
 #define PM_STATE_CPU_IDLE	0x0U
+#define PM_STATE_CPU_OFF	0x1U
 #define PM_STATE_SUSPEND_TO_RAM	0xFU
 
 #define MAX_LATENCY		(~0U)
-#define MAX_QOS			100U
 
 /* Processor core device IDs */
 #define APU_DEVID(IDX)	NODEID(XPM_NODECLASS_DEVICE, XPM_NODESUBCL_DEV_CORE, \
@@ -34,6 +34,7 @@
 				       (uint32_t)XPM_NODESUBCL_DEV_PERIPH, \
 				       (uint32_t)XPM_NODETYPE_DEV_PERIPH, (IDX))
 
+#define TF_A_FEATURE_CHECK		0xa00U
 #define PM_GET_CALLBACK_DATA		0xa01U
 #define PM_GET_TRUSTZONE_VERSION	0xa03U
 #define TF_A_PM_REGISTER_SGI		0xa04U
@@ -59,14 +60,15 @@
  * Enum definitions
  ********************************************************************/
 
-//ioctl id
+/*
+ * ioctl id
+ */
 enum {
 	IOCTL_GET_RPU_OPER_MODE = 0,
 	IOCTL_SET_RPU_OPER_MODE = 1,
 	IOCTL_RPU_BOOT_ADDR_CONFIG = 2,
 	IOCTL_TCM_COMB_CONFIG = 3,
 	IOCTL_SET_TAPDELAY_BYPASS = 4,
-	IOCTL_SET_SGMII_MODE = 5,
 	IOCTL_SD_DLL_RESET = 6,
 	IOCTL_SET_SD_TAPDELAY = 7,
 	 /* Ioctl for clock driver */
@@ -93,21 +95,23 @@ enum {
 	IOCTL_GET_LAST_RESET_REASON = 23,
 	/* AI engine NPI ISR clear */
 	IOCTL_AIE_ISR_CLEAR = 24,
-	/* Register SGI to TF-A */
-	IOCTL_SET_SGI = 25,
+	IOCTL_UFS_TXRX_CFGRDY_GET = 40,
+	IOCTL_UFS_SRAM_CSR_SEL = 41,
 };
 
 /**
- * @PM_PLL_PARAM_DIV2:		Enable for divide by 2 function inside the PLL
- * @PM_PLL_PARAM_FBDIV:		Feedback divisor integer portion for the PLL
- * @PM_PLL_PARAM_DATA:		Feedback divisor fractional portion for the PLL
- * @PM_PLL_PARAM_PRE_SRC:	Clock source for PLL input
- * @PM_PLL_PARAM_POST_SRC:	Clock source for PLL Bypass mode
- * @PM_PLL_PARAM_LOCK_DLY:	Lock circuit config settings for lock windowsize
- * @PM_PLL_PARAM_LOCK_CNT:	Lock circuit counter setting
- * @PM_PLL_PARAM_LFHF:		PLL loop filter high frequency capacitor control
- * @PM_PLL_PARAM_CP:		PLL charge pump control
- * @PM_PLL_PARAM_RES:		PLL loop filter resistor control
+ * enum pm_pll_param - enum represents the parameters for a phase-locked loop.
+ * @PM_PLL_PARAM_DIV2: Enable for divide by 2 function inside the PLL.
+ * @PM_PLL_PARAM_FBDIV: Feedback divisor integer portion for the PLL.
+ * @PM_PLL_PARAM_DATA: Feedback divisor fractional portion for the PLL.
+ * @PM_PLL_PARAM_PRE_SRC: Clock source for PLL input.
+ * @PM_PLL_PARAM_POST_SRC: Clock source for PLL Bypass mode.
+ * @PM_PLL_PARAM_LOCK_DLY: Lock circuit config settings for lock windowsize.
+ * @PM_PLL_PARAM_LOCK_CNT: Lock circuit counter setting.
+ * @PM_PLL_PARAM_LFHF: PLL loop filter high frequency capacitor control.
+ * @PM_PLL_PARAM_CP: PLL charge pump control.
+ * @PM_PLL_PARAM_RES: PLL loop filter resistor control.
+ * @PM_PLL_PARAM_MAX: Represents the maximum parameter value for the PLL
  */
 enum pm_pll_param {
 	PM_PLL_PARAM_DIV2,
@@ -170,9 +174,7 @@ enum pm_api_id {
 	PM_CLOCK_GETSTATE,
 	PM_CLOCK_SETDIVIDER,
 	PM_CLOCK_GETDIVIDER,
-	PM_CLOCK_SETRATE,
-	PM_CLOCK_GETRATE,
-	PM_CLOCK_SETPARENT,
+	PM_CLOCK_SETPARENT = 43,
 	PM_CLOCK_GETPARENT,
 	PM_SECURE_IMAGE,
 	/* FPGA PL Readback */
@@ -199,64 +201,46 @@ enum pm_abort_reason {
 	ABORT_REASON_UNKNOWN,
 };
 
-enum pm_opchar_type {
-	PM_OPCHAR_TYPE_POWER = 1,
-	PM_OPCHAR_TYPE_TEMP,
-	PM_OPCHAR_TYPE_LATENCY,
-};
-
-/**
- * Subsystem IDs
- */
-typedef enum {
-	XPM_SUBSYSID_PMC,
-	XPM_SUBSYSID_PSM,
-	XPM_SUBSYSID_APU,
-	XPM_SUBSYSID_RPU0_LOCK,
-	XPM_SUBSYSID_RPU0_0,
-	XPM_SUBSYSID_RPU0_1,
-	XPM_SUBSYSID_DDR0,
-	XPM_SUBSYSID_ME,
-	XPM_SUBSYSID_PL,
-	XPM_SUBSYSID_MAX,
-} XPm_SubsystemId;
-
 /* TODO: move pm_ret_status from device specific location to common location */
 /**
- * @PM_RET_SUCCESS:		success
- * @PM_RET_ERROR_ARGS:		illegal arguments provided (deprecated)
- * @PM_RET_ERROR_NOTSUPPORTED:	feature not supported  (deprecated)
- * @PM_RET_ERROR_NOFEATURE:	feature is not available
- * @PM_RET_ERROR_INVALID_CRC:	invalid crc in IPI communication
- * @PM_RET_ERROR_NOT_ENABLED:   feature is not enabled
- * @PM_RET_ERROR_INTERNAL:	internal error
- * @PM_RET_ERROR_CONFLICT:	conflict
- * @PM_RET_ERROR_ACCESS:	access rights violation
- * @PM_RET_ERROR_INVALID_NODE:	invalid node
- * @PM_RET_ERROR_DOUBLE_REQ:	duplicate request for same node
- * @PM_RET_ERROR_ABORT_SUSPEND:	suspend procedure has been aborted
- * @PM_RET_ERROR_TIMEOUT:	timeout in communication with PMU
- * @PM_RET_ERROR_NODE_USED:	node is already in use
+ * enum pm_ret_status - enum represents the return status codes for a PM
+ *                      operation.
+ * @PM_RET_SUCCESS: success.
+ * @PM_RET_ERROR_ARGS: illegal arguments provided (deprecated).
+ * @PM_RET_ERROR_NOTSUPPORTED: feature not supported  (deprecated).
+ * @PM_RET_ERROR_IOCTL_NOT_SUPPORTED: IOCTL is not supported.
+ * @PM_RET_ERROR_INVALID_CRC: invalid crc in IPI communication.
+ * @PM_RET_ERROR_NOT_ENABLED: feature is not enabled.
+ * @PM_RET_ERROR_INTERNAL: internal error.
+ * @PM_RET_ERROR_CONFLICT: conflict.
+ * @PM_RET_ERROR_ACCESS: access rights violation.
+ * @PM_RET_ERROR_INVALID_NODE: invalid node.
+ * @PM_RET_ERROR_DOUBLE_REQ: duplicate request for same node.
+ * @PM_RET_ERROR_ABORT_SUSPEND: suspend procedure has been aborted.
+ * @PM_RET_ERROR_TIMEOUT: timeout in communication with PMU.
+ * @PM_RET_ERROR_NODE_USED: node is already in use.
+ * @PM_RET_ERROR_NO_FEATURE: indicates that the requested feature is not
+ *                           supported.
  */
 enum pm_ret_status {
-	PM_RET_SUCCESS,
-	PM_RET_ERROR_ARGS = 1,
-	PM_RET_ERROR_NOTSUPPORTED = 4,
-	PM_RET_ERROR_NOFEATURE = 19,
-	PM_RET_ERROR_INVALID_CRC = 301,
-	PM_RET_ERROR_NOT_ENABLED = 29,
-	PM_RET_ERROR_INTERNAL = 2000,
-	PM_RET_ERROR_CONFLICT = 2001,
-	PM_RET_ERROR_ACCESS = 2002,
-	PM_RET_ERROR_INVALID_NODE = 2003,
-	PM_RET_ERROR_DOUBLE_REQ = 2004,
-	PM_RET_ERROR_ABORT_SUSPEND = 2005,
-	PM_RET_ERROR_TIMEOUT = 2006,
-	PM_RET_ERROR_NODE_USED = 2007,
-	PM_RET_ERROR_NO_FEATURE = 2008
+	PM_RET_SUCCESS = 0U,
+	PM_RET_ERROR_ARGS = 1U,
+	PM_RET_ERROR_NOTSUPPORTED = 4U,
+	PM_RET_ERROR_IOCTL_NOT_SUPPORTED = 19U,
+	PM_RET_ERROR_NOT_ENABLED = 29U,
+	PM_RET_ERROR_INVALID_CRC = 301U,
+	PM_RET_ERROR_INTERNAL = 2000U,
+	PM_RET_ERROR_CONFLICT = 2001U,
+	PM_RET_ERROR_ACCESS = 2002U,
+	PM_RET_ERROR_INVALID_NODE = 2003U,
+	PM_RET_ERROR_DOUBLE_REQ = 2004U,
+	PM_RET_ERROR_ABORT_SUSPEND = 2005U,
+	PM_RET_ERROR_TIMEOUT = 2006U,
+	PM_RET_ERROR_NODE_USED = 2007U,
+	PM_RET_ERROR_NO_FEATURE = 2008U
 };
 
-/**
+/*
  * Qids
  */
 enum pm_query_id {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2023, Arm Limited and Contributors. All rights reserved.
+ * Copyright (c) 2013-2025, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -15,6 +15,7 @@
 #endif
 #if ENABLE_RME
 #include <services/rmm_core_manifest.h>
+#include <services/rmm_el3_token_sign.h>
 #endif
 #include <drivers/fwu/fwu_metadata.h>
 #if TRNG_SUPPORT
@@ -23,6 +24,9 @@
 #if DRTM_SUPPORT
 #include "plat_drtm.h"
 #endif /* DRTM_SUPPORT */
+#if LFA_SUPPORT
+#include "plat_lfa.h"
+#endif /* LFA_SUPPORT */
 
 /*******************************************************************************
  * Forward declarations
@@ -39,6 +43,16 @@ struct spm_mm_boot_info;
 struct sp_res_desc;
 struct rmm_manifest;
 enum fw_enc_status_t;
+
+/*******************************************************************************
+ * Structure populated by platform specific code to export routines which
+ * perform load images functions, and associated pointer to platform ops
+ ******************************************************************************/
+struct plat_try_images_ops {
+	int (*next_instance)(unsigned int image_id);
+};
+
+extern const struct plat_try_images_ops *plat_try_img_ops;
 
 /*******************************************************************************
  * plat_get_rotpk_info() flags
@@ -80,6 +94,20 @@ unsigned int plat_my_core_pos(void);
 int plat_core_pos_by_mpidr(u_register_t mpidr);
 int plat_get_mbedtls_heap(void **heap_addr, size_t *heap_size);
 
+/*******************************************************************************
+ * Simple routine to determine whether a mpidr is valid or not.
+ ******************************************************************************/
+static inline bool is_valid_mpidr(u_register_t mpidr)
+{
+	int pos = plat_core_pos_by_mpidr(mpidr);
+
+	if ((pos < 0) || ((unsigned int)pos >= PLATFORM_CORE_COUNT)) {
+		return false;
+	}
+
+	return true;
+}
+
 #if STACK_PROTECTOR_ENABLED
 /*
  * Return a new value to be used for the stack protection's canary.
@@ -111,7 +139,7 @@ int plat_ic_is_sgi(unsigned int id);
 unsigned int plat_ic_get_interrupt_active(unsigned int id);
 void plat_ic_disable_interrupt(unsigned int id);
 void plat_ic_enable_interrupt(unsigned int id);
-int plat_ic_has_interrupt_type(unsigned int type);
+bool plat_ic_has_interrupt_type(unsigned int type);
 void plat_ic_set_interrupt_type(unsigned int id, unsigned int type);
 void plat_ic_set_interrupt_priority(unsigned int id, unsigned int priority);
 void plat_ic_raise_el3_sgi(int sgi_num, u_register_t target);
@@ -122,6 +150,7 @@ void plat_ic_set_spi_routing(unsigned int id, unsigned int routing_mode,
 void plat_ic_set_interrupt_pending(unsigned int id);
 void plat_ic_clear_interrupt_pending(unsigned int id);
 unsigned int plat_ic_set_priority_mask(unsigned int mask);
+unsigned int plat_ic_deactivate_priority(unsigned int mask);
 unsigned int plat_ic_get_interrupt_id(unsigned int raw);
 
 /*******************************************************************************
@@ -139,13 +168,15 @@ void plat_panic_handler(void) __dead2;
 void plat_system_reset(void) __dead2;
 const char *plat_log_get_prefix(unsigned int log_level);
 void bl2_plat_preload_setup(void);
-int plat_try_next_boot_source(void);
+void plat_setup_try_img_ops(const struct plat_try_images_ops *plat_try_ops);
 
 #if MEASURED_BOOT
 int plat_mboot_measure_image(unsigned int image_id, image_info_t *image_data);
 int plat_mboot_measure_critical_data(unsigned int critical_data_id,
 				     const void *base,
 				     size_t size);
+int plat_mboot_measure_key(const void *pk_oid, const void *pk_ptr,
+			   size_t pk_len);
 #else
 static inline int plat_mboot_measure_image(unsigned int image_id __unused,
 					   image_info_t *image_data __unused)
@@ -159,7 +190,21 @@ static inline int plat_mboot_measure_critical_data(
 {
 	return 0;
 }
+static inline int plat_mboot_measure_key(const void *pk_oid __unused,
+					 const void *pk_ptr __unused,
+					 size_t pk_len __unused)
+{
+	return 0;
+}
 #endif /* MEASURED_BOOT */
+
+#if EARLY_CONSOLE
+void plat_setup_early_console(void);
+#else
+static inline void plat_setup_early_console(void)
+{
+}
+#endif /* EARLY_CONSOLE */
 
 /*******************************************************************************
  * Mandatory BL1 functions
@@ -220,6 +265,10 @@ __dead2 void bl1_plat_fwu_done(void *client_cookie, void *reserved);
 int bl1_plat_handle_pre_image_load(unsigned int image_id);
 int bl1_plat_handle_post_image_load(unsigned int image_id);
 
+/* Utility functions */
+void bl1_plat_calc_bl2_layout(const meminfo_t *bl1_mem_layout,
+			      meminfo_t *bl2_mem_layout);
+
 #if MEASURED_BOOT
 void bl1_plat_mboot_init(void);
 void bl1_plat_mboot_finish(void);
@@ -230,7 +279,7 @@ static inline void bl1_plat_mboot_init(void)
 static inline void bl1_plat_mboot_finish(void)
 {
 }
-#endif /* MEASURED_BOOT */
+#endif /* MEASURED_BOOT || DICE_PROTECTION_ENVIRONMENT */
 
 /*******************************************************************************
  * Mandatory BL2 functions
@@ -250,9 +299,19 @@ int bl2_plat_handle_post_image_load(unsigned int image_id);
 /*******************************************************************************
  * Optional BL2 functions (may be overridden)
  ******************************************************************************/
-#if MEASURED_BOOT
+#if (MEASURED_BOOT || DICE_PROTECTION_ENVIRONMENT)
 void bl2_plat_mboot_init(void);
 void bl2_plat_mboot_finish(void);
+#if TRANSFER_LIST
+int plat_handoff_mboot(const void *data, uint32_t data_size, void *tl_base);
+#else
+static inline int
+plat_handoff_mboot(__unused const void *data, __unused uint32_t data_size,
+	      __unused void *tl_base)
+{
+	return -1;
+}
+#endif
 #else
 static inline void bl2_plat_mboot_init(void)
 {
@@ -260,7 +319,7 @@ static inline void bl2_plat_mboot_init(void)
 static inline void bl2_plat_mboot_finish(void)
 {
 }
-#endif /* MEASURED_BOOT */
+#endif /* MEASURED_BOOT || DICE_PROTECTION_ENVIRONMENTs */
 
 /*******************************************************************************
  * Mandatory BL2 at EL3 functions: Must be implemented
@@ -325,13 +384,43 @@ plat_local_state_t plat_get_target_pwr_state(unsigned int lvl,
  * Mandatory BL31 functions when ENABLE_RME=1
  ******************************************************************************/
 #if ENABLE_RME
+
 int plat_rmmd_get_cca_attest_token(uintptr_t buf, size_t *len,
-				   uintptr_t hash, size_t hash_size);
+				   uintptr_t hash, size_t hash_size,
+				   uint64_t *remaining_len);
 int plat_rmmd_get_cca_realm_attest_key(uintptr_t buf, size_t *len,
 				       unsigned int type);
+/* The following 3 functions are to be implement if
+ * RMMD_ENABLE_EL3_TOKEN_SIGN=1.
+ * The following three functions are expected to return E_RMM_* error codes.
+ */
+int plat_rmmd_el3_token_sign_get_rak_pub(uintptr_t buf, size_t *len,
+					   unsigned int type);
+int plat_rmmd_el3_token_sign_push_req(
+				const struct el3_token_sign_request *req);
+int plat_rmmd_el3_token_sign_pull_resp(struct el3_token_sign_response *resp);
 size_t plat_rmmd_get_el3_rmm_shared_mem(uintptr_t *shared);
 int plat_rmmd_load_manifest(struct rmm_manifest *manifest);
-#endif
+int plat_rmmd_mecid_key_update(uint16_t mecid);
+
+/* The following 4 functions are to be implemented if
+ * RMMD_ENABLE_IDE_KEY_PROG=1.
+ * The following functions are expected to return E_RMM_* error codes.
+ */
+int plat_rmmd_el3_ide_key_program(uint64_t ecam_address, uint64_t root_port_id,
+				  uint64_t ide_stream_info,
+				  rp_ide_key_info_t *ide_key_info_ptr,
+				  uint64_t request_id, uint64_t cookie);
+int plat_rmmd_el3_ide_key_set_go(uint64_t ecam_address, uint64_t root_port_id,
+				 uint64_t ide_stream_info, uint64_t request_id,
+				 uint64_t cookie);
+int plat_rmmd_el3_ide_key_set_stop(uint64_t ecam_address, uint64_t root_port_id,
+				   uint64_t ide_stream_info, uint64_t request_id,
+				   uint64_t cookie);
+int plat_rmmd_el3_ide_km_pull_response(uint64_t ecam_address, uint64_t root_port_id,
+				   uint64_t *req_resp, uint64_t *request_id,
+				   uint64_t *cookie);
+#endif /* ENABLE_RME */
 
 /*******************************************************************************
  * Optional BL31 functions (may be overridden)
@@ -397,13 +486,6 @@ struct bl_params *plat_get_next_bl_params(void);
 void plat_flush_next_bl_params(void);
 
 /*
- * The below function enable Trusted Firmware components like SPDs which
- * haven't migrated to the new platform API to compile on platforms which
- * have the compatibility layer disabled.
- */
-unsigned int platform_core_pos_helper(unsigned long mpidr);
-
-/*
  * Optional function to get SOC version
  */
 int32_t plat_get_soc_version(void);
@@ -412,6 +494,11 @@ int32_t plat_get_soc_version(void);
  * Optional function to get SOC revision
  */
 int32_t plat_get_soc_revision(void);
+
+/*
+ * Optional function to get SoC name
+ */
+int32_t plat_get_soc_name(char *soc_name);
 
 /*
  * Optional function to check for SMCCC function availability for platform

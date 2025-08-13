@@ -1,12 +1,12 @@
 #
-# Copyright (c) 2023, STMicroelectronics - All Rights Reserved
+# Copyright (c) 2023-2025, STMicroelectronics - All Rights Reserved
+# Copyright (c) 2025, Arm Limited and Contributors. All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 #
 
 RESET_TO_BL2			:=	1
 
-STM32MP_EARLY_CONSOLE		?=	0
 STM32MP_RECONFIGURE_CONSOLE	?=	0
 STM32MP_UART_BAUDRATE		?=	115200
 
@@ -27,7 +27,28 @@ PLAT_XLAT_TABLES_DYNAMIC	:=	1
 STM32_HEADER_BL2_BINARY_TYPE	:=	0x10
 
 TF_CFLAGS			+=	-Wsign-compare
+ifeq ($(findstring clang,$(notdir $(CC))),)
+# Only for GCC
 TF_CFLAGS			+=	-Wformat-signedness
+endif
+
+# Number of TF-A copies in the device
+STM32_TF_A_COPIES		:=	2
+
+# PLAT_PARTITION_MAX_ENTRIES must take care of STM32_TF-A_COPIES and other partitions
+PLAT_PARTITION_MAX_ENTRIES	:=	$(shell echo $$(($(STM32_TF_A_COPIES) + $(STM32_EXTRA_PARTS))))
+
+ifeq (${PSA_FWU_SUPPORT},1)
+# Number of banks of updatable firmware
+NR_OF_FW_BANKS			:=	2
+NR_OF_IMAGES_IN_FW_BANK		:=	1
+
+FWU_MAX_PART = $(shell echo $$(($(STM32_TF_A_COPIES) + 2 + $(NR_OF_FW_BANKS))))
+ifeq ($(shell test $(FWU_MAX_PART) -gt $(PLAT_PARTITION_MAX_ENTRIES); echo $$?),0)
+$(error "Required partition number is $(FWU_MAX_PART) where PLAT_PARTITION_MAX_ENTRIES is only \
+$(PLAT_PARTITION_MAX_ENTRIES)")
+endif
+endif
 
 # Boot devices
 STM32MP_EMMC			?=	0
@@ -43,7 +64,7 @@ STM32MP_EMMC_BOOT		?=	0
 STM32MP_UART_PROGRAMMER		?=	0
 STM32MP_USB_PROGRAMMER		?=	0
 
-$(eval DTC_V = $(shell $(DTC) -v | awk '{print $$NF}'))
+$(eval DTC_V = $(shell $($(ARCH)-dtc) -v | awk '{print $$NF}'))
 $(eval DTC_VERSION = $(shell printf "%d" $(shell echo ${DTC_V} | cut -d- -f1 | sed "s/\./0/g" | grep -o "[0-9]*")))
 DTC_CPPFLAGS			+=	${INCLUDES}
 DTC_FLAGS			+=	-Wno-unit_address_vs_reg
@@ -59,7 +80,7 @@ ASFLAGS				+=	-DBL2_BIN_PATH=\"${BUILD_PLAT}/bl2.bin\"
 
 # Variables for use with stm32image
 STM32IMAGEPATH			?=	tools/stm32image
-STM32IMAGE			?=	${STM32IMAGEPATH}/stm32image${BIN_EXT}
+STM32IMAGE			?=	${BUILD_PLAT}/${STM32IMAGEPATH}/stm32image$(.exe)
 STM32IMAGE_SRC			:=	${STM32IMAGEPATH}/stm32image.c
 STM32_DEPS			+=	${STM32IMAGE}
 
@@ -82,7 +103,6 @@ endif
 $(eval $(call assert_booleans,\
 	$(sort \
 		PLAT_XLAT_TABLES_DYNAMIC \
-		STM32MP_EARLY_CONSOLE \
 		STM32MP_EMMC \
 		STM32MP_EMMC_BOOT \
 		STM32MP_RAW_NAND \
@@ -104,7 +124,6 @@ $(eval $(call add_defines,\
 	$(sort \
 		PLAT_XLAT_TABLES_DYNAMIC \
 		STM32_TF_VERSION \
-		STM32MP_EARLY_CONSOLE \
 		STM32MP_EMMC \
 		STM32MP_EMMC_BOOT \
 		STM32MP_RAW_NAND \
@@ -123,6 +142,9 @@ PLAT_INCLUDES			+=	-Iplat/st/common/include/
 include lib/fconf/fconf.mk
 include lib/libfdt/libfdt.mk
 include lib/zlib/zlib.mk
+ifeq (${PSA_FWU_SUPPORT},1)
+include drivers/fwu/fwu.mk
+endif
 
 PLAT_BL_COMMON_SOURCES		+=	common/uuid.c					\
 					plat/st/common/stm32mp_common.c
@@ -146,6 +168,7 @@ BL2_SOURCES			+=	$(ZLIB_SOURCES)
 
 BL2_SOURCES			+=	drivers/io/io_fip.c				\
 					plat/st/common/bl2_io_storage.c			\
+					plat/st/common/plat_image_load.c		\
 					plat/st/common/stm32mp_fconf_io.c
 
 BL2_SOURCES			+=	drivers/io/io_block.c				\
@@ -157,14 +180,13 @@ BL2_SOURCES			+=	drivers/io/io_encrypted.c
 endif
 
 ifeq (${TRUSTED_BOARD_BOOT},1)
-AUTH_SOURCES			:=	drivers/auth/auth_mod.c				\
-					drivers/auth/crypto_mod.c			\
-					drivers/auth/img_parser_mod.c
+AUTH_MK := drivers/auth/auth.mk
+$(info Including ${AUTH_MK})
+include ${AUTH_MK}
 
 ifeq (${GENERATE_COT},1)
 TFW_NVCTR_VAL			:=	0
 NTFW_NVCTR_VAL			:=	0
-KEY_SIZE			:=
 KEY_ALG				:=	ecdsa
 HASH_ALG			:=	sha256
 
@@ -177,19 +199,11 @@ endif
 
 endif
 TF_MBEDTLS_KEY_ALG		:=	ecdsa
+KEY_SIZE			:=	256
 
-ifneq (${MBEDTLS_DIR},)
-MBEDTLS_MAJOR=$(shell grep -hP "define MBEDTLS_VERSION_MAJOR" \
-${MBEDTLS_DIR}/include/mbedtls/*.h | grep -oe '\([0-9.]*\)')
+PLAT_INCLUDES			+=	-Iinclude/drivers/auth/mbedtls
 
-ifeq (${MBEDTLS_MAJOR}, 2)
-MBEDTLS_CONFIG_FILE		?=	"<stm32mp_mbedtls_config-2.h>"
-endif
-
-ifeq (${MBEDTLS_MAJOR}, 3)
-MBEDTLS_CONFIG_FILE		?=	"<stm32mp_mbedtls_config-3.h>"
-endif
-endif
+MBEDTLS_CONFIG_FILE		?=	"<stm32mp_mbedtls_config.h>"
 
 include drivers/auth/mbedtls/mbedtls_x509.mk
 

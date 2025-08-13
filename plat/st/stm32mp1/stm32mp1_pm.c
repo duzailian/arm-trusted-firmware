@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2023, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2015-2024, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -13,6 +13,7 @@
 #include <drivers/arm/gic_common.h>
 #include <drivers/arm/gicv2.h>
 #include <drivers/clk.h>
+#include <drivers/st/stm32mp_reset.h>
 #include <dt-bindings/clock/stm32mp1-clks.h>
 #include <lib/mmio.h>
 #include <lib/psci/psci.h>
@@ -149,29 +150,21 @@ static void __dead2 stm32_system_off(void)
 
 static void __dead2 stm32_system_reset(void)
 {
-	mmio_setbits_32(stm32mp_rcc_base() + RCC_MP_GRSTCSETR,
-			RCC_MP_GRSTCSETR_MPSYSRST);
-
-	/* Loop in case system reset is not immediately caught */
-	for ( ; ; ) {
-		;
-	}
+	stm32mp_system_reset();
 }
 
 static int stm32_validate_power_state(unsigned int power_state,
 				      psci_power_state_t *req_state)
 {
-	int pstate = psci_get_pstate_type(power_state);
-
-	if (pstate != 0) {
+	if (psci_get_pstate_type(power_state) != 0U) {
 		return PSCI_E_INVALID_PARAMS;
 	}
 
-	if (psci_get_pstate_pwrlvl(power_state)) {
+	if (psci_get_pstate_pwrlvl(power_state) != 0U) {
 		return PSCI_E_INVALID_PARAMS;
 	}
 
-	if (psci_get_pstate_id(power_state)) {
+	if (psci_get_pstate_id(power_state) != 0U) {
 		return PSCI_E_INVALID_PARAMS;
 	}
 
@@ -222,7 +215,7 @@ static const plat_psci_ops_t stm32_psci_ops = {
 	.pwr_domain_suspend = stm32_pwr_domain_suspend,
 	.pwr_domain_on_finish = stm32_pwr_domain_on_finish,
 	.pwr_domain_suspend_finish = stm32_pwr_domain_suspend_finish,
-	.pwr_domain_pwr_down_wfi = stm32_pwr_domain_pwr_down_wfi,
+	.pwr_domain_pwr_down = stm32_pwr_domain_pwr_down_wfi,
 	.system_off = stm32_system_off,
 	.system_reset = stm32_system_reset,
 	.validate_power_state = stm32_validate_power_state,

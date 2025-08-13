@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013-2023, Arm Limited and Contributors. All rights reserved.
+# Copyright (c) 2013-2025, Arm Limited and Contributors. All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 #
@@ -15,9 +15,9 @@ ifeq (${ARCH},aarch64)
 BL2_SOURCES		+=	common/aarch64/early_exceptions.S
 endif
 
-ifneq ($(findstring gcc,$(notdir $(LD))),)
+ifeq ($($(ARCH)-ld-id),gnu-gcc)
         BL2_LDFLAGS	+=	-Wl,--sort-section=alignment
-else ifneq ($(findstring ld,$(notdir $(LD))),)
+else ifneq ($(filter llvm-lld gnu-ld,$($(ARCH)-ld-id)),)
         BL2_LDFLAGS	+=	--sort-section=alignment
 endif
 
@@ -41,16 +41,11 @@ else
 BL2_SOURCES		+=	bl2/${ARCH}/bl2_el3_entrypoint.S	\
 				bl2/${ARCH}/bl2_el3_exceptions.S	\
 				bl2/${ARCH}/bl2_run_next_image.S        \
-				lib/cpus/${ARCH}/cpu_helpers.S		\
-				lib/cpus/errata_report.c
-
-ifeq (${DISABLE_MTPMU},1)
-BL2_SOURCES		+=	lib/extensions/mtpmu/${ARCH}/mtpmu.S
-endif
-
-ifeq (${ARCH},aarch64)
-BL2_SOURCES		+=	lib/cpus/aarch64/dsu_helpers.S
-endif
+				lib/cpus/${ARCH}/cpu_helpers.S
 
 BL2_DEFAULT_LINKER_SCRIPT_SOURCE := bl2/bl2_el3.ld.S
+endif
+
+ifeq (${ENABLE_PMF},1)
+BL2_SOURCES		+=	lib/pmf/pmf_main.c
 endif

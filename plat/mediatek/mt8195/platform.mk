@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2021-2023, MediaTek Inc. All rights reserved.
+# Copyright (c) 2021-2025, MediaTek Inc. All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 #
@@ -8,6 +8,7 @@ MTK_PLAT     := plat/mediatek
 MTK_PLAT_SOC := ${MTK_PLAT}/${PLAT}
 
 PLAT_INCLUDES := -I${MTK_PLAT}/common/                            \
+                 -I${MTK_PLAT}/common/include                     \
                  -I${MTK_PLAT}/drivers/cirq/                      \
                  -I${MTK_PLAT}/drivers/dp/                        \
                  -I${MTK_PLAT}/drivers/gic600/                    \
@@ -99,7 +100,6 @@ ERRATA_A78_1688305 := 1
 ERRATA_A78_1941498 := 1
 ERRATA_A78_1951500 := 1
 ERRATA_A78_1821534 := 1
-ERRATA_A78_2132060 := 1
 ERRATA_A78_2242635 := 1
 
 # indicate the reset vector address can be programmed

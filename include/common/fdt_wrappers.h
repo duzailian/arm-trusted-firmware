@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2022, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2018-2024, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -21,6 +21,8 @@ uint32_t fdt_read_uint32_default(const void *dtb, int node,
 				 const char *prop_name, uint32_t dflt_value);
 int fdt_read_uint64(const void *dtb, int node, const char *prop_name,
 		    uint64_t *value);
+uint64_t fdt_read_uint64_default(const void *dtb, int node,
+				 const char *prop_name, uint64_t dflt_value);
 int fdt_read_uint32_array(const void *dtb, int node, const char *prop_name,
 			  unsigned int cells, uint32_t *value);
 int fdtw_read_string(const void *dtb, int node, const char *prop,
@@ -47,9 +49,11 @@ int fdtw_for_each_cpu(const void *fdt,
 
 int fdtw_find_or_add_subnode(void *fdt, int parentoffset, const char *name);
 
+uint64_t fdt_read_prop_cells(const fdt32_t *prop, int nr_cells);
+
 static inline uint32_t fdt_blob_size(const void *dtb)
 {
-	const uint32_t *dtb_header = dtb;
+	const uint32_t *dtb_header = (const uint32_t *)dtb;
 
 	return fdt32_to_cpu(dtb_header[1]);
 }
@@ -60,7 +64,8 @@ static inline bool fdt_node_is_enabled(const void *fdt, int node)
 	const void *prop = fdt_getprop(fdt, node, "status", &len);
 
 	/* A non-existing status property means the device is enabled. */
-	return (prop == NULL) || (len == 5 && strcmp(prop, "okay") == 0);
+	return (prop == NULL) || (len == 5 && strcmp((const char *)prop,
+		"okay") == 0);
 }
 
 #define fdt_for_each_compatible_node(dtb, node, compatible_str)       \

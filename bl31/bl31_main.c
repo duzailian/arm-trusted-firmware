@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2022, Arm Limited and Contributors. All rights reserved.
+ * Copyright (c) 2013-2025, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -13,10 +13,15 @@
 #include <bl31/bl31.h>
 #include <bl31/ehf.h>
 #include <common/bl_common.h>
+#include <common/build_message.h>
 #include <common/debug.h>
 #include <common/feat_detect.h>
 #include <common/runtime_svc.h>
+#include <drivers/arm/dsu.h>
+#include <drivers/arm/gic.h>
 #include <drivers/console.h>
+#include <lib/bootmarker_capture.h>
+#include <lib/el3_runtime/context_debug.h>
 #include <lib/el3_runtime/context_mgmt.h>
 #include <lib/pmf/pmf.h>
 #include <lib/runtime_instr.h>
@@ -24,8 +29,13 @@
 #include <services/std_svc.h>
 
 #if ENABLE_RUNTIME_INSTRUMENTATION
-PMF_REGISTER_SERVICE_SMC(rt_instr_svc, PMF_RT_INSTR_SVC_ID,
-	RT_INSTR_TOTAL_IDS, PMF_STORE_ENABLE)
+	PMF_REGISTER_SERVICE_SMC(rt_instr_svc, PMF_RT_INSTR_SVC_ID,
+		RT_INSTR_TOTAL_IDS, PMF_STORE_ENABLE)
+#endif
+
+#if ENABLE_RUNTIME_INSTRUMENTATION
+	PMF_REGISTER_SERVICE(bl_svc, PMF_RT_INSTR_SVC_ID,
+		BL_TOTAL_IDS, PMF_DUMP_ENABLE)
 #endif
 
 /*******************************************************************************
@@ -47,7 +57,7 @@ static int32_t (*rmm_init)(void);
  * Variable to indicate whether next image to execute after BL31 is BL33
  * (non-secure & default) or BL32 (secure).
  ******************************************************************************/
-static uint32_t next_image_type = NON_SECURE;
+static uint32_t next_image_type = (uint32_t)NON_SECURE;
 
 #ifdef SUPPORT_UNKNOWN_MPID
 /*
@@ -76,7 +86,7 @@ uintptr_t get_arm_std_svc_args(unsigned int svc_mask)
 /*******************************************************************************
  * Simple function to initialise all BL31 helper libraries.
  ******************************************************************************/
-void __init bl31_lib_init(void)
+static void __init bl31_lib_init(void)
 {
 	cm_init();
 }
@@ -87,19 +97,22 @@ void __init bl31_lib_init(void)
 void bl31_setup(u_register_t arg0, u_register_t arg1, u_register_t arg2,
 		u_register_t arg3)
 {
+#if FEATURE_DETECTION
+	/* Detect if features enabled during compilation are supported by PE. */
+	detect_arch_features(plat_my_core_pos());
+#endif /* FEATURE_DETECTION */
+
+	/* Enable early console if EARLY_CONSOLE flag is enabled */
+	plat_setup_early_console();
+
 	/* Perform early platform-specific setup */
 	bl31_early_platform_setup2(arg0, arg1, arg2, arg3);
 
 	/* Perform late platform-specific setup */
 	bl31_plat_arch_setup();
 
-#if CTX_INCLUDE_PAUTH_REGS
-	/*
-	 * Assert that the ARMv8.3-PAuth registers are present or an access
-	 * fault will be triggered when they are being saved or restored.
-	 */
-	assert(is_armv8_3_pauth_present());
-#endif /* CTX_INCLUDE_PAUTH_REGS */
+	/* Prints context_memory allocated for all the security states */
+	report_ctx_memory_usage();
 }
 
 /*******************************************************************************
@@ -112,13 +125,20 @@ void bl31_setup(u_register_t arg0, u_register_t arg1, u_register_t arg2,
  ******************************************************************************/
 void bl31_main(void)
 {
-	NOTICE("BL31: %s\n", version_string);
+	unsigned int core_pos = plat_my_core_pos();
+
+	/* Init registers that never change for the lifetime of TF-A */
+	cm_manage_extensions_el3(core_pos);
+
+	/* Init per-world context registers */
+	cm_manage_extensions_per_world();
+
+	NOTICE("BL31: %s\n", build_version_string);
 	NOTICE("BL31: %s\n", build_message);
 
-#if FEATURE_DETECTION
-	/* Detect if features enabled during compilation are supported by PE. */
-	detect_arch_features();
-#endif /* FEATURE_DETECTION */
+#if ENABLE_RUNTIME_INSTRUMENTATION
+	PMF_CAPTURE_TIMESTAMP(bl_svc, BL31_ENTRY, PMF_CACHE_MAINT);
+#endif
 
 #ifdef SUPPORT_UNKNOWN_MPID
 	if (unsupported_mpid_flag == 0) {
@@ -128,6 +148,20 @@ void bl31_main(void)
 
 	/* Perform platform setup in BL31 */
 	bl31_platform_setup();
+
+#if USE_DSU_DRIVER
+	dsu_driver_init(&plat_dsu_data);
+#endif
+
+#if USE_GIC_DRIVER
+	/*
+	 * Initialize the GIC driver as well as per-cpu and global interfaces.
+	 * Platform has had an opportunity to initialise specifics.
+	 */
+	gic_init(core_pos);
+	gic_pcpu_init(core_pos);
+	gic_cpuif_enable(core_pos);
+#endif /* USE_GIC_DRIVER */
 
 	/* Initialise helper libraries */
 	bl31_lib_init();
@@ -160,6 +194,7 @@ void bl31_main(void)
 	if (bl32_init != NULL) {
 		INFO("BL31: Initializing BL32\n");
 
+		console_flush();
 		int32_t rc = (*bl32_init)();
 
 		if (rc == 0) {
@@ -175,6 +210,7 @@ void bl31_main(void)
 	if (rmm_init != NULL) {
 		INFO("BL31: Initializing RMM\n");
 
+		console_flush();
 		int32_t rc = (*rmm_init)();
 
 		if (rc == 0) {
@@ -189,13 +225,19 @@ void bl31_main(void)
 	 */
 	bl31_prepare_next_image_entry();
 
-	console_flush();
-
 	/*
 	 * Perform any platform specific runtime setup prior to cold boot exit
 	 * from BL31
 	 */
 	bl31_plat_runtime_setup();
+
+#if ENABLE_RUNTIME_INSTRUMENTATION
+	console_flush();
+	PMF_CAPTURE_TIMESTAMP(bl_svc, BL31_EXIT, PMF_CACHE_MAINT);
+#endif
+
+	console_flush();
+	console_switch_state(CONSOLE_FLAG_RUNTIME);
 }
 
 /*******************************************************************************
@@ -223,7 +265,7 @@ uint32_t bl31_get_next_image_type(void)
  ******************************************************************************/
 void __init bl31_prepare_next_image_entry(void)
 {
-	entry_point_info_t *next_image_info;
+	const entry_point_info_t *next_image_info;
 	uint32_t image_type;
 
 #if CTX_INCLUDE_AARCH32_REGS

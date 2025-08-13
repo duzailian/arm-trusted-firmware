@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013-2023, Arm Limited and Contributors. All rights reserved.
+# Copyright (c) 2013-2025, Arm Limited and Contributors. All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 #
@@ -12,26 +12,27 @@ BL1_SOURCES		+=	bl1/${ARCH}/bl1_arch_setup.c		\
 				lib/cpus/${ARCH}/cpu_helpers.S		\
 				lib/cpus/errata_report.c		\
 				lib/el3_runtime/${ARCH}/context_mgmt.c	\
+				lib/locks/exclusive/${ARCH}/spinlock.S	\
 				plat/common/plat_bl1_common.c		\
 				plat/common/${ARCH}/platform_up_stack.S \
 				${MBEDTLS_SOURCES}
 
-ifeq (${DISABLE_MTPMU},1)
-BL1_SOURCES		+=	lib/extensions/mtpmu/${ARCH}/mtpmu.S
-endif
-
 ifeq (${ARCH},aarch64)
-BL1_SOURCES		+=	lib/cpus/aarch64/dsu_helpers.S		\
-				lib/el3_runtime/aarch64/context.S
+BL1_SOURCES		+=	lib/el3_runtime/aarch64/context.S	\
+				lib/cpus/errata_common.c
 endif
 
 ifeq (${TRUSTED_BOARD_BOOT},1)
 BL1_SOURCES		+=	bl1/bl1_fwu.c
 endif
 
-ifneq ($(findstring gcc,$(notdir $(LD))),)
+ifeq (${ENABLE_PMF},1)
+BL1_SOURCES		+=	lib/pmf/pmf_main.c
+endif
+
+ifeq ($($(ARCH)-ld-id),gnu-gcc)
         BL1_LDFLAGS	+=	-Wl,--sort-section=alignment
-else ifneq ($(findstring ld,$(notdir $(LD))),)
+else ifneq ($(filter llvm-lld gnu-ld,$($(ARCH)-ld-id)),)
         BL1_LDFLAGS	+=	--sort-section=alignment
 endif
 

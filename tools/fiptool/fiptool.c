@@ -1,12 +1,13 @@
 /*
- * Copyright (c) 2016-2023, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2016-2024, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef _MSC_VER
+#ifdef __linux__
 #include <sys/mount.h>
 #endif
+
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -460,6 +461,7 @@ static struct option *fill_common_opts(struct option *opts, size_t *nr_opts,
 	return opts;
 }
 
+#if !STATIC
 static void md_print(const unsigned char *md, size_t len)
 {
 	size_t i;
@@ -467,6 +469,7 @@ static void md_print(const unsigned char *md, size_t len)
 	for (i = 0; i < len; i++)
 		printf("%02x", md[i]);
 }
+#endif
 
 static int info_cmd(int argc, char *argv[])
 {
@@ -498,7 +501,13 @@ static int info_cmd(int argc, char *argv[])
 		       (unsigned long long)image->toc_e.offset_address,
 		       (unsigned long long)image->toc_e.size,
 		       desc->cmdline_name);
-#ifndef _MSC_VER	/* We don't have SHA256 for Visual Studio. */
+
+		/*
+		 * Omit this informative code portion for:
+		 * Visual Studio missing SHA256.
+		 * Statically linked builds.
+		 */
+#if !defined(_MSC_VER) && !STATIC
 		if (verbose) {
 			unsigned char md[SHA256_DIGEST_LENGTH];
 

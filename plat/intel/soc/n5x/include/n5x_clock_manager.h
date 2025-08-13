@@ -1,16 +1,15 @@
 /*
  * Copyright (c) 2019-2023, Intel Corporation. All rights reserved.
+ * Copyright (c) 2024, Altera Corporation. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#ifndef CLOCKMANAGER_H
-#define CLOCKMANAGER_H
+#ifndef N5X_SOCFPGA_CLOCKMANAGER_H
+#define N5X_SOCFPGA_CLOCKMANAGER_H
 
-#include "socfpga_handoff.h"
 
 /* MACRO DEFINITION */
-#define SOCFPGA_GLOBAL_TIMER				0xffd01000
 #define SOCFPGA_GLOBAL_TIMER_EN				0x3
 
 #define CLKMGR_PLLGLOB_VCO_PSRC_MASK			GENMASK(17, 16)
@@ -56,5 +55,6 @@ uint64_t get_l4_clk(void);
 uint32_t get_clk_freq(uint32_t psrc_reg);
 uint32_t get_mpu_clk(void);
 uint32_t get_cpu_clk(void);
+uint32_t get_mpu_periph_clk(void);
 
-#endif
+#endif /* N5X_SOCFPGA_CLOCKMANAGER_H */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Arm Limited. All rights reserved.
+ * Copyright (c) 2022-2024, Arm Limited. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include <common/debug.h>
+#include <drivers/measured_boot/metadata.h>
 #include <measured_boot.h>
 #include <psa/client.h>
 #include <psa_manifest/sid.h>
@@ -61,9 +62,8 @@ static void log_measurement(uint8_t index,
 	INFO(" - locking     : %s\n", lock_measurement ? "true" : "false");
 }
 
-#if !PLAT_RSS_NOT_SUPPORTED
 psa_status_t
-rss_measured_boot_extend_measurement(uint8_t index,
+rse_measured_boot_extend_measurement(uint8_t index,
 				     const uint8_t *signer_id,
 				     size_t signer_id_size,
 				     const uint8_t *version,
@@ -80,22 +80,32 @@ rss_measured_boot_extend_measurement(uint8_t index,
 		.lock_measurement = lock_measurement,
 		.measurement_algo = measurement_algo,
 		.sw_type = {0},
-		/* Removing \0 */
-		.sw_type_size = (sw_type_size > 0) ? (sw_type_size - 1) : 0,
+		.sw_type_size = sw_type_size,
 	};
+
+	if (version_size > VERSION_MAX_SIZE) {
+		return PSA_ERROR_INVALID_ARGUMENT;
+	}
+
+
+	if (version_size > 0 && version[version_size - 1] == '\0') {
+		version_size--;
+	}
 
 	psa_invec in_vec[] = {
 		{.base = &extend_iov,
 			.len = sizeof(struct measured_boot_extend_iovec_t)},
 		{.base = signer_id, .len = signer_id_size},
-		{.base = version,
-			.len = (version_size > 0) ? (version_size - 1) : 0},
+		{.base = version, .len = version_size },
 		{.base = measurement_value, .len = measurement_value_size}
 	};
 
 	if (sw_type != NULL) {
 		if (extend_iov.sw_type_size > SW_TYPE_MAX_SIZE) {
 			return PSA_ERROR_INVALID_ARGUMENT;
+		}
+		if (sw_type_size > 0 && sw_type[sw_type_size - 1] == '\0') {
+			extend_iov.sw_type_size--;
 		}
 		memcpy(extend_iov.sw_type, sw_type, extend_iov.sw_type_size);
 	}
@@ -105,13 +115,13 @@ rss_measured_boot_extend_measurement(uint8_t index,
 			measurement_algo, measurement_value,
 			measurement_value_size, lock_measurement);
 
-	return psa_call(RSS_MEASURED_BOOT_HANDLE,
-			RSS_MEASURED_BOOT_EXTEND,
+	return psa_call(RSE_MEASURED_BOOT_HANDLE,
+			RSE_MEASURED_BOOT_EXTEND,
 			in_vec, IOVEC_LEN(in_vec),
 			NULL, 0);
 }
 
-psa_status_t rss_measured_boot_read_measurement(uint8_t index,
+psa_status_t rse_measured_boot_read_measurement(uint8_t index,
 					uint8_t *signer_id,
 					size_t signer_id_size,
 					size_t *signer_id_len,
@@ -148,7 +158,7 @@ psa_status_t rss_measured_boot_read_measurement(uint8_t index,
 		{.base = measurement_value, .len = measurement_value_size}
 	};
 
-	status = psa_call(RSS_MEASURED_BOOT_HANDLE, RSS_MEASURED_BOOT_READ,
+	status = psa_call(RSE_MEASURED_BOOT_HANDLE, RSE_MEASURED_BOOT_READ,
 					  in_vec, IOVEC_LEN(in_vec),
 					  out_vec, IOVEC_LEN(out_vec));
 
@@ -165,47 +175,3 @@ psa_status_t rss_measured_boot_read_measurement(uint8_t index,
 
 	return status;
 }
-
-#else /* !PLAT_RSS_NOT_SUPPORTED */
-
-psa_status_t
-rss_measured_boot_extend_measurement(uint8_t index,
-				     const uint8_t *signer_id,
-				     size_t signer_id_size,
-				     const uint8_t *version,
-				     size_t version_size,
-				     uint32_t measurement_algo,
-				     const uint8_t *sw_type,
-				     size_t sw_type_size,
-				     const uint8_t *measurement_value,
-				     size_t measurement_value_size,
-				     bool lock_measurement)
-{
-	log_measurement(index, signer_id, signer_id_size,
-			version, version_size, sw_type, sw_type_size,
-			measurement_algo, measurement_value,
-			measurement_value_size, lock_measurement);
-
-	return PSA_SUCCESS;
-}
-
-psa_status_t rss_measured_boot_read_measurement(uint8_t index,
-					uint8_t *signer_id,
-					size_t signer_id_size,
-					size_t *signer_id_len,
-					uint8_t *version,
-					size_t version_size,
-					size_t *version_len,
-					uint32_t *measurement_algo,
-					uint8_t *sw_type,
-					size_t sw_type_size,
-					size_t *sw_type_len,
-					uint8_t *measurement_value,
-					size_t measurement_value_size,
-					size_t *measurement_value_len,
-					bool *is_locked)
-{
-	return PSA_SUCCESS;
-}
-
-#endif /* !PLAT_RSS_NOT_SUPPORTED */

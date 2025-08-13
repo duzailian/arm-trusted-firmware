@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Arm Limited. All rights reserved.
+ * Copyright (c) 2022-2024, Arm Limited. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
@@ -14,21 +14,6 @@
 
 #include "psa/error.h"
 
-/* Minimum measurement value size that can be requested to store */
-#define MEASUREMENT_VALUE_MIN_SIZE	32U
-/* Maximum measurement value size that can be requested to store */
-#define MEASUREMENT_VALUE_MAX_SIZE	64U
-/* Minimum signer id size that can be requested to store */
-#define SIGNER_ID_MIN_SIZE		MEASUREMENT_VALUE_MIN_SIZE
-/* Maximum signer id size that can be requested to store */
-#define SIGNER_ID_MAX_SIZE		MEASUREMENT_VALUE_MAX_SIZE
-/* The theoretical maximum image version is: "255.255.65535\0" */
-#define VERSION_MAX_SIZE		14U
-/* Example sw_type: "BL_2, BL_33, etc." */
-#define SW_TYPE_MAX_SIZE		20U
-#define NUM_OF_MEASUREMENT_SLOTS	32U
-
-
 /**
  * Extends and stores a measurement to the requested slot.
  *
@@ -36,10 +21,10 @@
  * signer_id			Pointer to signer_id buffer.
  * signer_id_size		Size of the signer_id in bytes.
  * version			Pointer to version buffer.
- * version_size			Size of the version string in bytes (with \0).
+ * version_size			Size of the version string in bytes.
  * measurement_algo		Algorithm identifier used for measurement.
  * sw_type			Pointer to sw_type buffer.
- * sw_type_size			Size of the sw_type string in bytes (with \0).
+ * sw_type_size			Size of the sw_type string in bytes.
  * measurement_value		Pointer to measurement_value buffer.
  * measurement_value_size	Size of the measurement_value in bytes.
  * lock_measurement		Boolean flag requesting whether the measurement
@@ -58,11 +43,11 @@
  *	- When the requested slot is not accessible to the caller.
  */
 
-/* Not a standard PSA API, just an extension therefore use the 'rss_' prefix
+/* Not a standard PSA API, just an extension therefore use the 'rse_' prefix
  * rather than the usual 'psa_'.
  */
 psa_status_t
-rss_measured_boot_extend_measurement(uint8_t index,
+rse_measured_boot_extend_measurement(uint8_t index,
 				     const uint8_t *signer_id,
 				     size_t signer_id_size,
 				     const uint8_t *version,
@@ -107,7 +92,7 @@ rss_measured_boot_extend_measurement(uint8_t index,
  * PSA_ERROR_DOES_NOT_EXIST
  *	- The requested slot is empty, does not contain a measurement.
  */
-psa_status_t rss_measured_boot_read_measurement(uint8_t index,
+psa_status_t rse_measured_boot_read_measurement(uint8_t index,
 					uint8_t *signer_id,
 					size_t signer_id_size,
 					size_t *signer_id_len,

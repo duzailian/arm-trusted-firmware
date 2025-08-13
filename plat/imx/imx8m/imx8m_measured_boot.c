@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Arm Limited. All rights reserved.
+ * Copyright (c) 2022-2025, Arm Limited. All rights reserved.
  * Copyright (c) 2022, Linaro.
  *
  * SPDX-License-Identifier: BSD-3-Clause
@@ -9,6 +9,7 @@
 
 #include "./include/imx8m_measured_boot.h"
 #include <drivers/measured_boot/event_log/event_log.h>
+#include <drivers/measured_boot/metadata.h>
 #include <plat/arm/common/plat_arm.h>
 
 /* Event Log data */
@@ -16,11 +17,11 @@ static uint8_t event_log[PLAT_IMX_EVENT_LOG_MAX_SIZE];
 
 /* FVP table with platform specific image IDs, names and PCRs */
 static const event_log_metadata_t imx8m_event_log_metadata[] = {
-	{ BL31_IMAGE_ID, EVLOG_BL31_STRING, PCR_0 },
-	{ BL32_IMAGE_ID, EVLOG_BL32_STRING, PCR_0 },
-	{ BL32_EXTRA1_IMAGE_ID, EVLOG_BL32_EXTRA1_STRING, PCR_0 },
-	{ BL32_EXTRA2_IMAGE_ID, EVLOG_BL32_EXTRA2_STRING, PCR_0 },
-	{ BL33_IMAGE_ID, EVLOG_BL33_STRING, PCR_0 },
+	{ BL31_IMAGE_ID, MBOOT_BL31_IMAGE_STRING, PCR_0 },
+	{ BL32_IMAGE_ID, MBOOT_BL32_IMAGE_STRING, PCR_0 },
+	{ BL32_EXTRA1_IMAGE_ID, MBOOT_BL32_EXTRA1_IMAGE_STRING, PCR_0 },
+	{ BL32_EXTRA2_IMAGE_ID, MBOOT_BL32_EXTRA2_IMAGE_STRING, PCR_0 },
+	{ BL33_IMAGE_ID, MBOOT_BL33_IMAGE_STRING, PCR_0 },
 	{ EVLOG_INVALID_ID, NULL, (unsigned int)(-1) }	/* Terminator */
 };
 
@@ -77,5 +78,11 @@ void bl2_plat_mboot_finish(void)
 	/* Ensure that the Event Log is visible in Non-secure memory */
 	flush_dcache_range(ns_log_addr, event_log_cur_size);
 
-	dump_event_log((uint8_t *)event_log, event_log_cur_size);
+	event_log_dump((uint8_t *)event_log, event_log_cur_size);
+}
+
+int plat_mboot_measure_key(const void *pk_oid, const void *pk_ptr,
+			   size_t pk_len)
+{
+	return 0;
 }

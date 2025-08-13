@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2022, Arm Limited and Contributors. All rights reserved.
+ * Copyright (c) 2015-2023, Arm Limited and Contributors. All rights reserved.
  * Copyright (c) 2023, NVIDIA Corporation. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
@@ -35,11 +35,22 @@ uintptr_t gicv3_get_multichip_base(uint32_t spi_id, uintptr_t gicd_base)
  *****************************************************************************/
 void gicv3_rdistif_mark_core_awake(uintptr_t gicr_base)
 {
+	uint32_t waker = gicr_read_waker(gicr_base);
+
+	/* Only try to mark it as awake when it is asleep. */
+	if ((waker & WAKER_PS_BIT) == 0U) {
+		return;
+	}
+
 	/*
-	 * The WAKER_PS_BIT should be changed to 0
-	 * only when WAKER_CA_BIT is 1.
+	 * ProcessorSleep must only be changed when ChildrenAsleep is 1.
+	 * If PS is 1 and CA isn't, wait for that to happen, but warn.
 	 */
-	assert((gicr_read_waker(gicr_base) & WAKER_CA_BIT) != 0U);
+	if ((waker & WAKER_CA_BIT) == 0U) {
+		WARN("GICR_WAKER.ChildrenAsleep unexpectedly set, waiting...\n");
+		while ((gicr_read_waker(gicr_base) & WAKER_CA_BIT) == 0U) {
+		}
+	}
 
 	/* Mark the connected core as awake */
 	gicr_write_waker(gicr_base, gicr_read_waker(gicr_base) & ~WAKER_PS_BIT);
@@ -223,12 +234,15 @@ unsigned int gicv3_secure_spis_config_props(uintptr_t gicd_base,
 		current_prop = &interrupt_props[i];
 
 		unsigned int intr_num = current_prop->intr_num;
-		uintptr_t multichip_gicd_base = gicv3_get_multichip_base(intr_num, gicd_base);
+		uintptr_t multichip_gicd_base;
 
 		/* Skip SGI, (E)PPI and LPI interrupts */
 		if (!IS_SPI(intr_num)) {
 			continue;
 		}
+
+		multichip_gicd_base =
+			gicv3_get_multichip_base(intr_num, gicd_base);
 
 		/* Configure this interrupt as a secure interrupt */
 		gicd_clr_igroupr(multichip_gicd_base, intr_num);

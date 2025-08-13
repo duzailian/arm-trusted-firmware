@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023, Arm Limited and Contributors. All rights reserved.
+ * Copyright (c) 2020-2025, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -12,6 +12,8 @@
 #include <common/bl_common.h>
 #include <common/debug.h>
 #include <drivers/arm/ccn.h>
+#include <drivers/arm/css/sds.h>
+#include <lib/utils_def.h>
 #include <plat/arm/common/plat_arm.h>
 #include <plat/common/platform.h>
 #include <drivers/arm/sbsa.h>
@@ -28,8 +30,12 @@
 #if IMAGE_BL1
 const mmap_region_t plat_arm_mmap[] = {
 	ARM_MAP_SHARED_RAM,
+	TC_MAP_NS_DRAM1,
 	TC_FLASH0_RO,
 	TC_MAP_DEVICE,
+#if TRANSFER_LIST
+	TC_MAP_EL3_FW_HANDOFF,
+#endif
 	{0}
 };
 #endif
@@ -37,6 +43,7 @@ const mmap_region_t plat_arm_mmap[] = {
 const mmap_region_t plat_arm_mmap[] = {
 	ARM_MAP_SHARED_RAM,
 	TC_FLASH0_RO,
+	ARM_V2M_MAP_MEM_PROTECT,
 	TC_MAP_DEVICE,
 	TC_MAP_NS_DRAM1,
 #if defined(SPD_spmd)
@@ -55,6 +62,9 @@ const mmap_region_t plat_arm_mmap[] = {
 	ARM_MAP_OPTEE_CORE_MEM,
 	ARM_OPTEE_PAGEABLE_LOAD_MEM,
 #endif
+#if TRANSFER_LIST
+	TC_MAP_EL3_FW_HANDOFF,
+#endif
 	{0}
 };
 #endif
@@ -62,10 +72,15 @@ const mmap_region_t plat_arm_mmap[] = {
 const mmap_region_t plat_arm_mmap[] = {
 	ARM_MAP_SHARED_RAM,
 	V2M_MAP_IOFPGA,
+	ARM_V2M_MAP_MEM_PROTECT,
 	TC_MAP_DEVICE,
 	PLAT_DTB_DRAM_NS,
 #if SPM_MM
 	ARM_SPM_BUF_EL3_MMAP,
+#endif
+#if TRANSFER_LIST
+	TC_MAP_FW_NS_HANDOFF,
+	TC_MAP_EL3_FW_HANDOFF,
 #endif
 	{0}
 };
@@ -158,4 +173,16 @@ void plat_arm_secure_wdt_stop(void)
 void plat_arm_secure_wdt_refresh(void)
 {
 	sbsa_wdog_refresh(SBSA_SECURE_WDOG_REFRESH_BASE);
+}
+
+static sds_region_desc_t tc_sds_regions[] = {
+	{ .base = PLAT_ARM_SDS_MEM_BASE },
+	{ .base = PLAT_ARM_RSE_AP_SDS_MEM_BASE },
+};
+
+sds_region_desc_t *plat_sds_get_regions(unsigned int *region_count)
+{
+	*region_count = ARRAY_SIZE(tc_sds_regions);
+
+	return tc_sds_regions;
 }

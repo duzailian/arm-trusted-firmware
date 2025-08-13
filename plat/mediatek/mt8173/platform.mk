@@ -21,7 +21,7 @@ PLAT_INCLUDES		:=	-I${MTK_PLAT}/common/				\
 
 PLAT_BL_COMMON_SOURCES	:=	lib/xlat_tables/xlat_tables_common.c		\
 				lib/xlat_tables/aarch64/xlat_tables.c		\
-				plat/arm/common/arm_gicv2.c			\
+				plat/common/plat_gicv2_base.c			\
 				plat/common/plat_gicv2.c			\
 				plat/common/aarch64/crash_console_helpers.S
 
@@ -71,5 +71,3 @@ $(eval $(call add_define,MTK_SIP_SET_AUTHORIZED_SECURE_REG_ENABLE))
 
 # Do not enable SVE
 ENABLE_SVE_FOR_NS		:=	0
-
-MULTI_CONSOLE_API		:=	1

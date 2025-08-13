@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2023, Arm Limited and Contributors. All rights reserved.
+ * Copyright (c) 2015-2025, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -65,6 +65,18 @@ static void init(void)
 
 #if CRYPTO_SUPPORT == CRYPTO_AUTH_VERIFY_ONLY || \
 CRYPTO_SUPPORT == CRYPTO_AUTH_VERIFY_AND_HASH_CALC
+
+
+/*
+ * NOTE: This has been made internal in mbedtls 3.6.0 and the mbedtls team has
+ * advised that it's better to copy out the declaration than it would be to
+ * update to 3.5.2, where this function is exposed.
+ */
+int mbedtls_x509_get_sig_alg(const mbedtls_x509_buf *sig_oid,
+			     const mbedtls_x509_buf *sig_params,
+			     mbedtls_md_type_t *md_alg,
+			     mbedtls_pk_type_t *pk_alg,
+			     void **sig_opts);
 /*
  * Verify a signature.
  *
@@ -172,16 +184,19 @@ static int verify_hash(void *data_ptr, unsigned int data_len,
 	int rc;
 
 	/*
-	 * Digest info should be an MBEDTLS_ASN1_SEQUENCE
-	 * and consume all bytes.
+	 * Digest info should be an MBEDTLS_ASN1_SEQUENCE, but padding after
+	 * it is allowed.  This is necessary to support multiple hash
+	 * algorithms.
 	 */
 	p = (unsigned char *)digest_info_ptr;
 	end = p + digest_info_len;
 	rc = mbedtls_asn1_get_tag(&p, end, &len, MBEDTLS_ASN1_CONSTRUCTED |
 				  MBEDTLS_ASN1_SEQUENCE);
-	if (rc != 0 || ((size_t)(end - p) != len)) {
+	if (rc != 0) {
 		return CRYPTO_ERR_HASH;
 	}
+
+	end = p + len;
 
 	/* Get the hash algorithm */
 	rc = mbedtls_asn1_get_alg(&p, end, &hash_oid, &params);
@@ -260,6 +275,7 @@ static int calc_hash(enum crypto_md_algo md_algo, void *data_ptr,
 		     unsigned char output[CRYPTO_MD_MAX_SIZE])
 {
 	const mbedtls_md_info_t *md_info;
+	int rc;
 
 	md_info = mbedtls_md_info_from_type(md_type(md_algo));
 	if (md_info == NULL) {
@@ -271,7 +287,12 @@ static int calc_hash(enum crypto_md_algo md_algo, void *data_ptr,
 	 * 'output' hash buffer pointer considering its size is always
 	 * bigger than or equal to MBEDTLS_MD_MAX_SIZE.
 	 */
-	return mbedtls_md(md_info, data_ptr, data_len, output);
+	rc = mbedtls_md(md_info, data_ptr, data_len, output);
+	if (rc != 0) {
+		return CRYPTO_ERR_HASH;
+	}
+
+	return CRYPTO_SUCCESS;
 }
 #endif /* CRYPTO_SUPPORT == CRYPTO_HASH_CALC_ONLY || \
 	  CRYPTO_SUPPORT == CRYPTO_AUTH_VERIFY_AND_HASH_CALC */
@@ -396,19 +417,19 @@ static int auth_decrypt(enum crypto_dec_algo dec_algo, void *data_ptr,
 #if CRYPTO_SUPPORT == CRYPTO_AUTH_VERIFY_AND_HASH_CALC
 #if TF_MBEDTLS_USE_AES_GCM
 REGISTER_CRYPTO_LIB(LIB_NAME, init, verify_signature, verify_hash, calc_hash,
-		    auth_decrypt, NULL);
+		    auth_decrypt, NULL, NULL);
 #else
 REGISTER_CRYPTO_LIB(LIB_NAME, init, verify_signature, verify_hash, calc_hash,
-		    NULL, NULL);
+		    NULL, NULL, NULL);
 #endif
 #elif CRYPTO_SUPPORT == CRYPTO_AUTH_VERIFY_ONLY
 #if TF_MBEDTLS_USE_AES_GCM
 REGISTER_CRYPTO_LIB(LIB_NAME, init, verify_signature, verify_hash, NULL,
-		    auth_decrypt, NULL);
+		    auth_decrypt, NULL, NULL);
 #else
 REGISTER_CRYPTO_LIB(LIB_NAME, init, verify_signature, verify_hash, NULL,
-		    NULL, NULL);
+		    NULL, NULL, NULL);
 #endif
 #elif CRYPTO_SUPPORT == CRYPTO_HASH_CALC_ONLY
-REGISTER_CRYPTO_LIB(LIB_NAME, init, NULL, NULL, calc_hash, NULL, NULL);
+REGISTER_CRYPTO_LIB(LIB_NAME, init, NULL, NULL, calc_hash, NULL, NULL, NULL);
 #endif /* CRYPTO_SUPPORT == CRYPTO_AUTH_VERIFY_AND_HASH_CALC */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2023, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2014-2025, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -14,6 +14,7 @@
 #include <plat/arm/board/common/board_css_def.h>
 #include <plat/arm/board/common/v2m_def.h>
 #include <plat/arm/common/arm_def.h>
+#include <plat/arm/common/arm_spm_def.h>
 #include <plat/arm/css/common/css_def.h>
 #include <plat/arm/soc/common/soc_css_def.h>
 #include <plat/common/common_def.h>
@@ -32,12 +33,12 @@
 #define PLATFORM_CORE_COUNT		(JUNO_CLUSTER0_CORE_COUNT + \
 					JUNO_CLUSTER1_CORE_COUNT)
 
-/* Cryptocell HW Base address */
-#define PLAT_CRYPTOCELL_BASE		UL(0x60050000)
-
 /*
  * Other platform porting definitions are provided by included headers
  */
+
+/* Define memory configuration for device tree files. */
+#define PLAT_ARM_HW_CONFIG_SIZE			U(0x8000)
 
 /*
  * Required ARM standard platform porting definitions
@@ -131,14 +132,45 @@
 #endif
 
 #ifdef IMAGE_BL31
-# define PLAT_ARM_MMAP_ENTRIES		8
-# define MAX_XLAT_TABLES		6
+# if SPMC_AT_EL3
+#   define PLAT_ARM_MMAP_ENTRIES		10
+#   define MAX_XLAT_TABLES		8
+#   define PLAT_SP_IMAGE_MMAP_REGIONS 30
+#   define PLAT_SP_IMAGE_MAX_XLAT_TABLES 12
+# else
+#   define PLAT_ARM_MMAP_ENTRIES		8
+#   define MAX_XLAT_TABLES		6
+# endif
 #endif
 
 #ifdef IMAGE_BL32
 # define PLAT_ARM_MMAP_ENTRIES		6
 # define MAX_XLAT_TABLES		4
 #endif
+
+#if SPMC_AT_EL3
+/*
+ * Number of Secure Partitions supported.
+ * SPMC at EL3, uses this count to configure the maximum number of supported
+ * secure partitions.
+ */
+#define SECURE_PARTITION_COUNT		1
+
+/*
+ * Number of Normal World Partitions supported.
+ * SPMC at EL3, uses this count to configure the maximum number of supported
+ * NWd partitions.
+ */
+#define NS_PARTITION_COUNT		1
+
+/*
+ * Number of Logical Partitions supported.
+ * SPMC at EL3, uses this count to configure the maximum number of supported
+ * logical partitions.
+ */
+#define MAX_EL3_LP_DESCS_COUNT		1
+
+#endif /* SPMC_AT_EL3 */
 
 /*
  * PLAT_ARM_MAX_BL1_RW_SIZE is calculated using the current BL1 RW debug size
@@ -156,7 +188,7 @@
  */
 #if TRUSTED_BOARD_BOOT
 #if TF_MBEDTLS_KEY_ALG_ID == TF_MBEDTLS_RSA_AND_ECDSA
-# define PLAT_ARM_MAX_BL2_SIZE	(UL(0x1F000) - JUNO_BL2_ROMLIB_OPTIMIZATION)
+# define PLAT_ARM_MAX_BL2_SIZE	(UL(0x20000) - JUNO_BL2_ROMLIB_OPTIMIZATION)
 #elif TF_MBEDTLS_KEY_ALG_ID == TF_MBEDTLS_ECDSA
 # define PLAT_ARM_MAX_BL2_SIZE	(UL(0x1D000) - JUNO_BL2_ROMLIB_OPTIMIZATION)
 #else
@@ -211,6 +243,9 @@
 # define PLATFORM_STACK_SIZE		UL(0x440)
 #endif
 
+#define PLAT_ARM_SP_IMAGE_STACK_BASE	(PLAT_SPM_BUF_BASE + \
+					 PLAT_SPM_BUF_SIZE)
+
 /* CCI related constants */
 #define PLAT_ARM_CCI_BASE		UL(0x2c090000)
 #define PLAT_ARM_CCI_CLUSTER0_SL_IFACE_IX	4
@@ -249,12 +284,14 @@
 /* MHU related constants */
 #define PLAT_CSS_MHU_BASE		UL(0x2b1f0000)
 
+#if CSS_USE_SCMI_SDS_DRIVER
+/* Index of SDS region used in the communication between AP and SCP */
+#define SDS_SCP_AP_REGION_ID			U(0)
+#else
 /*
  * Base address of the first memory region used for communication between AP
  * and SCP. Used by the BOM and SCPI protocols.
- */
-#if !CSS_USE_SCMI_SDS_DRIVER
-/*
+ *
  * Note that this is located at the same address as SCP_BOOT_CFG_ADDR, which
  * means the SCP/AP configuration data gets overwritten when the AP initiates
  * communication with the SCP. The configuration data is expected to be a
@@ -264,7 +301,7 @@
 #define PLAT_CSS_SCP_COM_SHARED_MEM_BASE	(ARM_TRUSTED_SRAM_BASE + UL(0x80))
 #define PLAT_CSS_PRIMARY_CPU_SHIFT		8
 #define PLAT_CSS_PRIMARY_CPU_BIT_WIDTH		4
-#endif
+#endif /* CSS_USE_SCMI_SDS_DRIVER */
 
 /*
  * SCP_BL2 uses up whatever remaining space is available as it is loaded before
@@ -327,15 +364,15 @@
 
 /* Protected NSAIDs and memory regions for the Arm(R) Ethos(TM)-N NPU driver */
 #ifdef JUNO_ETHOSN_TZMP1
-#define ARM_ETHOSN_NPU_PROT_FW_NSAID		JUNO_ETHOSN_TZC400_NSAID_FW_PROT
-#define ARM_ETHOSN_NPU_PROT_RW_DATA_NSAID	JUNO_ETHOSN_TZC400_NSAID_DATA_RW_PROT
-#define ARM_ETHOSN_NPU_PROT_RO_DATA_NSAID	JUNO_ETHOSN_TZC400_NSAID_DATA_RO_PROT
+#define ETHOSN_NPU_PROT_FW_NSAID		JUNO_ETHOSN_TZC400_NSAID_FW_PROT
+#define ETHOSN_NPU_PROT_RW_DATA_NSAID		JUNO_ETHOSN_TZC400_NSAID_DATA_RW_PROT
+#define ETHOSN_NPU_PROT_RO_DATA_NSAID		JUNO_ETHOSN_TZC400_NSAID_DATA_RO_PROT
 
-#define ARM_ETHOSN_NPU_NS_RW_DATA_NSAID		JUNO_ETHOSN_TZC400_NSAID_DATA_RW_NS
-#define ARM_ETHOSN_NPU_NS_RO_DATA_NSAID		JUNO_ETHOSN_TZC400_NSAID_DATA_RO_NS
+#define ETHOSN_NPU_NS_RW_DATA_NSAID		JUNO_ETHOSN_TZC400_NSAID_DATA_RW_NS
+#define ETHOSN_NPU_NS_RO_DATA_NSAID		JUNO_ETHOSN_TZC400_NSAID_DATA_RO_NS
 
-#define ARM_ETHOSN_NPU_FW_IMAGE_BASE		JUNO_ETHOSN_FW_TZC_PROT_DRAM2_BASE
-#define ARM_ETHOSN_NPU_FW_IMAGE_LIMIT \
+#define ETHOSN_NPU_FW_IMAGE_BASE		JUNO_ETHOSN_FW_TZC_PROT_DRAM2_BASE
+#define ETHOSN_NPU_FW_IMAGE_LIMIT \
 	(JUNO_ETHOSN_FW_TZC_PROT_DRAM2_BASE + JUNO_ETHOSN_FW_TZC_PROT_DRAM2_SIZE)
 #endif
 

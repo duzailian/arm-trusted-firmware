@@ -2,12 +2,11 @@ Project Maintenance
 ===================
 
 Trusted Firmware-A (TF-A) is an open governance community project. All
-contributions are ultimately merged by the maintainers listed below. Technical
-ownership of most parts of the codebase falls on the code owners listed
-below. An acknowledgement from these code owners is required before the
-maintainers merge a contribution.
+contributions are reviewed and merged by the community members listed below.
 
-More details may be found in the `Project Maintenance Process`_ document.
+For more details on the roles of `maintainers`, `code owners` and general
+information about code reviews in TF-A project, please refer to the :ref:`Code
+Review Guidelines`.
 
 .. |M| replace:: **Mail**
 .. |G| replace:: **GitHub ID**
@@ -17,6 +16,10 @@ More details may be found in the `Project Maintenance Process`_ document.
 
 Maintainers
 -----------
+
+.. note::
+   If you wish to become a maintainer for TF-A project, please refer to the
+   :ref:`Project Maintenance Processes`.
 
 :|M|: Dan Handley <dan.handley@arm.com>
 :|G|: `danh-arm`_
@@ -46,10 +49,16 @@ Maintainers
 :|G|: `laurenw-arm`_
 :|M|: Madhukar Pappireddy <Madhukar.Pappireddy@arm.com>
 :|G|: `madhukar-Arm`_
-:|M|: Raghu Krishnamurthy <raghu.ncstate@icloud.com>
+:|M|: Raghu Krishnamurthy <raghuoss@raghushome.com>
 :|G|: `raghuncstate`_
 :|M|: Manish Badarkhe <manish.badarkhe@arm.com>
 :|G|: `ManishVB-Arm`_
+:|M|: Yann Gautier <yann.gautier@st.com>
+:|G|: `Yann-lms`_
+:|M|: Govindraj Raja <govindraj.raja@arm.com>
+:|G|: `govindraj-arm`_
+
+.. _lts maintainers:
 
 LTS Maintainers
 ---------------
@@ -58,10 +67,14 @@ LTS Maintainers
 :|G|: `bipinravi-arm`_
 :|M|: Joanna Farley <joanna.farley@arm.com>
 :|G|: `joannafarley-arm`_
-:|M|: Okash Khawaja <okash@google.com>
-:|G|: `bytefire`_
+:|M|: Jidong Sun <jidong@google.com>
+:|G|: `jidongsun`_
 :|M|: Varun Wadekar <vwadekar@nvidia.com>
 :|G|: `vwadekar`_
+:|M|: Yann Gautier <yann.gautier@st.com>
+:|G|: `Yann-lms`_
+:|M|: Govindraj Raja <govindraj.raja@arm.com>
+:|G|: `govindraj-arm`_
 
 .. _code owners:
 
@@ -98,8 +111,6 @@ Trusted Boot
 :|G|: `ManishVB-Arm`_
 :|M|: Lauren Wehrmeister <Lauren.Wehrmeister@arm.com>
 :|G|: `laurenw-arm`_
-:|M|: Jimmy Brisson <jimmy.brisson@arm.com>
-:|G|: `jimmy-brisson`_
 :|F|: drivers/auth/
 
 Secure Partition Manager Core (EL3 FF-A SPMC)
@@ -107,6 +118,8 @@ Secure Partition Manager Core (EL3 FF-A SPMC)
 :|M|: Marc Bonnici <marc.bonnici@arm.com>
 :|G|: `marcbonnici`_
 :|F|: services/std_svc/spm/el3_spmc/\*
+:|F|: include/services/el3_spmc\_\*
+:|F|: include/services/spmc_svc.h
 
 Secure Partition Manager Dispatcher (SPMD)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -114,7 +127,13 @@ Secure Partition Manager Dispatcher (SPMD)
 :|G|: `odeprez`_
 :|M|: Joao Alves <Joao.Alves@arm.com>
 :|G|: `J-Alves`_
+:|M|: Madhukar Pappireddy <Madhukar.Pappireddy@arm.com>
+:|G|: `madhukar-Arm`_
 :|F|: services/std_svc/spmd/\*
+:|F|: plat/common/plat_spmd_manifest.c
+:|F|: include/services/ffa_svc.h
+:|F|: include/services/el3_spmd_logical_sp.h
+:|F|: include/services/spmd_svc.h
 
 Exception Handling Framework (EHF)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -123,6 +142,16 @@ Exception Handling Framework (EHF)
 :|M|: Manish Pandey <manish.pandey2@arm.com>
 :|G|: `manish-pandey-arm`_
 :|F|: bl31/ehf.c
+
+Runtime Exceptions and Interrupt Management
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+:|M|: Manish Pandey <manish.pandey2@arm.com>
+:|G|: `manish-pandey-arm`_
+:|M|: Madhukar Pappireddy <Madhukar.Pappireddy@arm.com>
+:|G|: `madhukar-Arm`_
+:|F|: bl31/aarch64/
+:|F|: bl31/interrupt_mgmt.c
+:|F|: include/bl31/interrupt_mgmt.h
 
 Realm Management Monitor Dispatcher (RMMD)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -191,12 +220,14 @@ Arm® Ethos™-N NPU driver
 
 JTAG DCC console driver
 ^^^^^^^^^^^^^^^^^^^^^^^
-:M: Michal Simek <michal.simek@amd.com>
-:G: `michalsimek`_
-:M: Venkatesh Yadav Abbarapu <venkatesh.abbarapu@amd.com>
-:G: `venkatesh`_
-:F: drivers/arm/dcc/
-:F: include/drivers/arm/dcc.h
+:|M|: Michal Simek <michal.simek@amd.com>
+:|G|: `michalsimek`_
+:|M|: Akshay Belsare <akshay.belsare@amd.com>
+:|G|: `Akshay-Belsare`_
+:|M|: Maheedhar Sai Bollapalli <maheedharsai.bollapalli@amd.com>
+:|G|: `maheedhar-bollapalli`_
+:|F|: drivers/arm/dcc/
+:|F|: include/drivers/arm/dcc.h
 
 Power State Coordination Interface (PSCI)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -206,13 +237,17 @@ Power State Coordination Interface (PSCI)
 :|G|: `madhukar-Arm`_
 :|M|: Lauren Wehrmeister <Lauren.Wehrmeister@arm.com>
 :|G|: `laurenw-arm`_
+:|M|: Boyan Karatotev <boyan.karatotev@arm.com>
+:|G|: `loosper-arm`_
 :|F|: lib/psci/
+:|F|: include/lib/psci/
 
 DebugFS
 ^^^^^^^
 :|M|: Olivier Deprez <olivier.deprez@arm.com>
 :|G|: `odeprez`_
 :|F|: lib/debugfs/
+:|F|: include/lib/debugfs.h
 
 Firmware Configuration Framework (FCONF)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -223,6 +258,10 @@ Firmware Configuration Framework (FCONF)
 :|M|: Lauren Wehrmeister <Lauren.Wehrmeister@arm.com>
 :|G|: `laurenw-arm`_
 :|F|: lib/fconf/
+:|F|: plat/arm/common/fconf/
+:|F|: include/lib/fconf/
+:|F|: include/plat/arm/common/arm_fconf\_\*
+:|F|: include/plat/arm/common/fconf\_\*
 
 Performance Measurement Framework (PMF)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -243,7 +282,10 @@ Arm CPU libraries
 :|G|: `bipinravi-arm`_
 :|M|: Lauren Wehrmeister <Lauren.Wehrmeister@arm.com>
 :|G|: `laurenw-arm`_
+:|M|: Boyan Karatotev <boyan.karatotev@arm.com>
+:|G|: `loosper-arm`_
 :|F|: lib/cpus/
+:|F|: include/lib/cpus/
 
 Reliability Availability Serviceabilty (RAS) framework
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -251,6 +293,8 @@ Reliability Availability Serviceabilty (RAS) framework
 :|G|: `manish-pandey-arm`_
 :|M|: Olivier Deprez <olivier.deprez@arm.com>
 :|G|: `odeprez`_
+:|M|: Boyan Karatotev <boyan.karatotev@arm.com>
+:|G|: `loosper-arm`_
 :|F|: lib/extensions/ras/
 
 Activity Monitors Unit (AMU) extensions
@@ -259,24 +303,32 @@ Activity Monitors Unit (AMU) extensions
 :|G|: `AlexeiFedorov`_
 :|M|: Chris Kay <chris.kay@arm.com>
 :|G|: `CJKay`_
+:|M|: Boyan Karatotev <boyan.karatotev@arm.com>
+:|G|: `loosper-arm`_
 :|F|: lib/extensions/amu/
 
 Memory Partitioning And Monitoring (MPAM) extensions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 :|M|: Manish Pandey <manish.pandey2@arm.com>
 :|G|: `manish-pandey-arm`_
+:|M|: Boyan Karatotev <boyan.karatotev@arm.com>
+:|G|: `loosper-arm`_
 :|F|: lib/extensions/mpam/
 
 Pointer Authentication (PAuth) and Branch Target Identification (BTI) extensions
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 :|M|: Alexei Fedorov <Alexei.Fedorov@arm.com>
 :|G|: `AlexeiFedorov`_
+:|M|: Boyan Karatotev <boyan.karatotev@arm.com>
+:|G|: `loosper-arm`_
 :|F|: lib/extensions/pauth/
 
 Statistical Profiling Extension (SPE)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 :|M|: Manish Pandey <manish.pandey2@arm.com>
 :|G|: `manish-pandey-arm`_
+:|M|: Boyan Karatotev <boyan.karatotev@arm.com>
+:|G|: `loosper-arm`_
 :|F|: lib/extensions/spe/
 
 Standard C library
@@ -319,6 +371,8 @@ GIC driver
 :|G|: `madhukar-Arm`_
 :|M|: Olivier Deprez <olivier.deprez@arm.com>
 :|G|: `odeprez`_
+:|M|: Boyan Karatotev <boyan.karatotev@arm.com>
+:|G|: `loosper-arm`_
 :|F|: drivers/arm/gic/
 
 Message Handling Unit (MHU) driver
@@ -328,12 +382,12 @@ Message Handling Unit (MHU) driver
 :|F|: include/drivers/arm/mhu.h
 :|F|: drivers/arm/mhu
 
-Runtime Security Subsystem (RSS) comms driver
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Runtime Security Engine (RSE) comms driver
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 :|M|: David Vincze <david.vincze@arm.com>
 :|G|: `davidvincze`_
-:|F|: include/drivers/arm/rss_comms.h
-:|F|: drivers/arm/rss
+:|F|: include/drivers/arm/rse_comms.h
+:|F|: drivers/arm/rse
 
 Libfdt wrappers
 ^^^^^^^^^^^^^^^
@@ -345,7 +399,7 @@ Libfdt wrappers
 
 Firmware Encryption Framework
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-:|M|: Sumit Garg <sumit.garg@linaro.org>
+:|M|: Sumit Garg <sumit.garg@kernel.org>
 :|G|: `b49020`_
 :|F|: drivers/io/io_encrypted.c
 :|F|: include/drivers/io/io_encrypted.h
@@ -357,8 +411,8 @@ Measured Boot
 :|G|: `sandrine-bailleux-arm`_
 :|M|: Manish Badarkhe <manish.badarkhe@arm.com>
 :|G|: `ManishVB-Arm`_
-:|M|: Jimmy Brisson <jimmy.brisson@arm.com>
-:|G|: `jimmy-brisson`_
+:|M|: Harrison Mutai <harrison.mutai@arm.com>
+:|G|: `harrisonmutai-arm`_
 :|F|: drivers/measured_boot
 :|F|: include/drivers/measured_boot
 :|F|: docs/components/measured_boot
@@ -371,6 +425,8 @@ DRTM
 :|M|: Manish Pandey <manish.pandey2@arm.com>
 :|G|: `manish-pandey-arm`_
 :|F|: services/std_svc/drtm
+:|F|: include/plat/common/plat_drtm.h
+:|F|: include/services/drtm_svc.h
 
 PSA Firmware Update
 ^^^^^^^^^^^^^^^^^^^
@@ -385,8 +441,8 @@ Platform Security Architecture (PSA) APIs
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 :|M|: Sandrine Bailleux <sandrine.bailleux@arm.com>
 :|G|: `sandrine-bailleux-arm`_
-:|M|: Jimmy Brisson <jimmy.brisson@arm.com>
-:|G|: `jimmy-brisson`_
+:|M|: Manish Badarkhe <manish.badarkhe@arm.com>
+:|G|: `ManishVB-Arm`_
 :|F|: include/lib/psa
 :|F|: lib/psa
 
@@ -403,8 +459,7 @@ Max Power Mitigation Mechanism (MPMM)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 :|M|: Chris Kay <chris.kay@arm.com>
 :|G|: `CJKay`_
-:|F|: include/lib/mpmm/
-:|F|: lib/mpmm/
+:|F|: include/lib/cpus/aarch64/cpu_macros.S
 
 Granule Protection Tables Library (GPT-RME)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -414,6 +469,51 @@ Granule Protection Tables Library (GPT-RME)
 :|G|: `javieralso-arm`_
 :|F|: lib/gpt_rme
 :|F|: include/lib/gpt_rme
+
+Firmware Handoff Library (Transfer List)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+:|M|: Raymond Mao <raymond.mao@linaro.org>
+:|G|: `raymo200915`_
+:|M|: Harrison Mutai <harrison.mutai@arm.com>
+:|G|: `harrisonmutai-arm`_
+:|F|: lib/transfer_list
+:|F|: include/lib/transfer_list.h
+
+Context Management
+^^^^^^^^^^^^^^^^^^
+:|M|: Jayanth Dodderi Chidanand <jayanthdodderi.chidanand@arm.com>
+:|G|: `jayanthchidanand-arm`_
+:|M|: Manish Pandey <manish.pandey2@arm.com>
+:|G|: `manish-pandey-arm`_
+:|M|: Madhukar Pappireddy <Madhukar.Pappireddy@arm.com>
+:|G|: `madhukar-Arm`_
+:|M|: Boyan Karatotev <boyan.karatotev@arm.com>
+:|G|: `loosper-arm`_
+:|F|: bl1/aarch32/bl1_context_mgmt.c
+:|F|: bl1/aarch64/bl1_context_mgmt.c
+:|F|: bl31/bl31_context_mgmt.c
+:|F|: lib/el3_runtime/
+:|F|: include/lib/el3_runtime/
+
+Runtime Services
+^^^^^^^^^^^^^^^^
+:|M|: Manish Pandey <manish.pandey2@arm.com>
+:|G|: `manish-pandey-arm`_
+:|M|: Madhukar Pappireddy <Madhukar.Pappireddy@arm.com>
+:|G|: `madhukar-Arm`_
+:|F|: services/std_svc/std_svc_setup.c
+:|F|: common/runtime_svc.c
+:|F|: include/common/runtime_svc.h
+:|F|: include/services/arm_arch_svc.h
+:|F|: include/services/std_svc.h
+
+Live Firmware Activation Service
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+:|M|: Manish Badarkhe <manish.badarkhe@arm.com>
+:|G|: `ManishVB-Arm`_
+:|F|: services/std_svc/lfa
+:|F|: include/plat/common/plat_lfa.h
+:|F|: include/services/lfa_svc.h
 
 Platform Ports
 ~~~~~~~~~~~~~~
@@ -471,6 +571,8 @@ Arm FVP Platform port
 :|G|: `manish-pandey-arm`_
 :|M|: Madhukar Pappireddy <Madhukar.Pappireddy@arm.com>
 :|G|: `madhukar-Arm`_
+:|M|: Harrison Mutai <harrison.mutai@arm.com>
+:|G|: `harrisonmutai-arm`_
 :|F|: plat/arm/board/fvp
 
 Arm Juno Platform port
@@ -494,8 +596,8 @@ Arm Rich IoT Platform ports
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 :|M|: Abdellatif El Khlifi <abdellatif.elkhlifi@arm.com>
 :|G|: `abdellatif-elkhlifi`_
-:|M|: Vishnu Banavath <vishnu.banavath@arm.com>
-:|G|: `vishnu-banavath`_
+:|M|: Hugues Kamba Mpiana <hugues.kambampiana@arm.com>
+:|G|: `hugues-kambampiana-arm`_
 :|F|: plat/arm/board/corstone700
 :|F|: plat/arm/board/a5ds
 :|F|: plat/arm/board/corstone1000
@@ -506,21 +608,38 @@ Arm Reference Design platform ports
 :|G|: `thomas-arm`_
 :|M|: Vijayenthiran Subramaniam <vijayenthiran.subramaniam@arm.com>
 :|G|: `vijayenthiran-arm`_
-:|F|: plat/arm/css/sgi/
-:|F|: plat/arm/board/rde1edge/
-:|F|: plat/arm/board/rdn1edge/
-:|F|: plat/arm/board/rdn2/
-:|F|: plat/arm/board/rdv1/
-:|F|: plat/arm/board/rdv1mc/
-:|F|: plat/arm/board/sgi575/
+:|M|: Rohit Mathew <Rohit.Mathew@arm.com>
+:|G|: `rohit-arm`_
+:|F|: plat/arm/board/neoverse_rd/common
+:|F|: plat/arm/board/neoverse_rd/platform/rdn2/
+:|F|: plat/arm/board/neoverse_rd/platform/rdv3/
 
 Arm Total Compute platform port
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-:|M|: Vishnu Banavath <vishnu.banavath@arm.com>
-:|G|: `vishnu-banavath`_
-:|M|: Rupinderjit Singh <rupinderjit.singh@arm.com>
-:|G|: `rupsin01`_
+:|M|: Artem Kopotev <artem.kopotev@arm.com>
+:|G|: `artkopotev`_
+:|M|: Oleksandr Tarhunakov <Oleksandr.Tarhunakov@arm.com>
+:|G|: `o-tarhunakov`_
 :|F|: plat/arm/board/tc
+
+Arm Automotive RD platform port
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+:|M|: Diego Sueiro <diego.sueiro@arm.com>
+:|G|: `diego-sueiro`_
+:|M|: Peter Hoyes <peter.hoyes@arm.com>
+:|G|: `hoyes`_
+:|M|: Divin Raj <divin.raj@arm.com>
+:|G|: `divin-raj`_
+:|F|: plat/arm/board/automotive_rd
+
+Aspeed platform port
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+:|M|: Chia-Wei Wang <chiawei_wang@aspeedtech.com>
+:|G|: `ChiaweiW`_
+:|M|: Neal Liu <neal_liu@aspeedtech.com>
+:|G|: `Neal-liu`_
+:|F|: docs/plat/ast2700.rst
+:|F|: plat/aspeed/
 
 HiSilicon HiKey and HiKey960 platform ports
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -549,8 +668,6 @@ Intel SocFPGA platform ports
 
 MediaTek platform ports
 ^^^^^^^^^^^^^^^^^^^^^^^
-:|M|: Rex-BC Chen <rex-bc.chen@mediatek.com>
-:|G|: `mtk-rex-bc-chen`_
 :|M|: Leon Chen <leon.chen@mediatek.com>
 :|G|: `leon-chen-mtk`_
 :|M|: Jason-CH Chen <jason-ch.chen@mediatek.com>
@@ -562,12 +679,25 @@ MediaTek platform ports
 
 Marvell platform ports and SoC drivers
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-:|M|: Konstantin Porotchkin <kostap@marvell.com>
-:|G|: `kostapr`_
+:|M|: Jaiprakash Singh <jaiprakashs@marvell.com>
+:|G|: `sjaypee208`_
 :|F|: docs/plat/marvell/
 :|F|: plat/marvell/
 :|F|: drivers/marvell/
 :|F|: tools/marvell/
+
+Nuvoton npcm845x platform port
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+:|M|: Hila Miranda-Kuzi <hila.miranda.kuzi1@gmail.com>
+:|G|: `hilamirandakuzi1`_
+:|M|: Margarita Glushkin <rutigl@gmail.com>
+:|G|: `rutigl`_
+:|M|: Avi Fishman <avi.fishman@nuvoton.com>
+:|G|: `avifishman`_
+:|F|: docs/plat/npcm845x.rst
+:|F|: include/drivers/nuvoton/
+:|F|: include/plat/nuvoton/
+:|F|: plat/nuvoton/
 
 NVidia platform ports
 ^^^^^^^^^^^^^^^^^^^^^
@@ -604,6 +734,20 @@ NXP i.MX8M platform port
 :|G|: `JackyBai`_
 :|F|: docs/plat/imx8m.rst
 :|F|: plat/imx/imx8m/
+
+NXP i.MX8ULP platform port
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+:|M|: Jacky Bai <ping.bai@nxp.com>
+:|G|: `JackyBai`_
+:|F|: docs/plat/imx8ulp.rst
+:|F|: plat/imx/imx8ulp/
+
+NXP i.MX9 platform port
+^^^^^^^^^^^^^^^^^^^^^^^^
+:|M|: Jacky Bai <ping.bai@nxp.com>
+:|G|: `JackyBai`_
+:|F|: docs/plat/imx9.rst
+:|F|: plat/imx/imx93/
 
 NXP QorIQ Layerscape common code for platform ports
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -656,6 +800,16 @@ NXP SoC Part LS1088A and its platform port
 :|F|: plat/nxp/soc-ls1088a/ls1088ardb
 :|F|: plat/nxp/soc-ls1088a/ls1088aqds
 
+NXP SoC Part S32G274A and its platform port
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+:|M|: Ghennadi Procopciuc <ghennadi.procopciuc@nxp.com>
+:|G|: `gprocopciucnxp`_
+:|F|: docs/plat/s32g274a.rst
+:|F|: drivers/nxp/clk/s32cc
+:|F|: drivers/nxp/console/linflex_console.S
+:|F|: include/drivers/nxp/console/linflex.h
+:|F|: plat/nxp/s32
+
 QEMU platform port
 ^^^^^^^^^^^^^^^^^^
 :|M|: Jens Wiklander <jens.wiklander@linaro.org>
@@ -665,14 +819,14 @@ QEMU platform port
 
 QTI platform port
 ^^^^^^^^^^^^^^^^^
-:|M|: Saurabh Gorecha <sgorecha@codeaurora.org>
-:|G|: `sgorecha`_
 :|M|: Lachit Patel <lpatel@codeaurora.org>
 :|G|: `lachitp`_
 :|M|: Sreevyshanavi Kare <skare@codeaurora.org>
 :|G|: `sreekare`_
 :|M|: Muhammad Arsath K F <quic_mkf@quicinc.com>
 :|G|: `quic_mkf`_
+:|M|: Saurabh Gorecha <quic_sgorecha@quicinc.com>
+:|G|: `quic_sgorecha`_
 :|M|: QTI TF Maintainers <qti.trustedfirmware.maintainers@codeaurora.org>
 :|F|: docs/plat/qti.rst
 :|F|: plat/qti/
@@ -684,7 +838,10 @@ QTI MSM8916 platform port
 :|M|: Nikita Travkin <nikita@trvn.ru>
 :|G|: `TravMurav`_
 :|F|: docs/plat/qti-msm8916.rst
+:|F|: plat/qti/mdm9607/
+:|F|: plat/qti/msm8909/
 :|F|: plat/qti/msm8916/
+:|F|: plat/qti/msm8939/
 
 Raspberry Pi 3 platform port
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -708,8 +865,6 @@ Raspberry Pi 4 platform port
 
 Renesas rcar-gen3 platform port
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-:|M|: Jorge Ramirez-Ortiz  <jramirez@baylibre.com>
-:|G|: `ldts`_
 :|M|: Marek Vasut <marek.vasut@gmail.com>
 :|G|: `marex`_
 :|F|: docs/plat/rcar-gen3.rst
@@ -741,26 +896,30 @@ RockChip platform port
 :|G|: `rockchip-linux`_
 :|M|: Heiko Stuebner <heiko@sntech.de>
 :|G|: `mmind`_
-:|M|: Julius Werner <jwerner@chromium.org>
-:|G|: `jwerner-chromium`_
 :|F|: plat/rockchip/
 
-STM32MP1 platform port
-^^^^^^^^^^^^^^^^^^^^^^
+STMicroelectronics platform ports
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 :|M|: Yann Gautier <yann.gautier@st.com>
 :|G|: `Yann-lms`_
+:|M|: Maxime Méré <maxime.mere@foss.st.com>
+:|G|: `meremST`_
+:|F|: docs/plat/st/*
 :|F|: docs/plat/stm32mp1.rst
 :|F|: drivers/st/
 :|F|: fdts/stm32\*
 :|F|: include/drivers/st/
 :|F|: include/dt-bindings/\*/stm32\*
 :|F|: plat/st/
+:|F|: tools/fiptool/plat_fiptool/st/
 :|F|: tools/stm32image/
 
 Synquacer platform port
 ^^^^^^^^^^^^^^^^^^^^^^^
-:|M|: Sumit Garg <sumit.garg@linaro.org>
+:|M|: Sumit Garg <sumit.garg@kernel.org>
 :|G|: `b49020`_
+:|M|: Masahisa Kojima <kojima.masahisa@socionext.com>
+:|G|: `masahisak`_
 :|F|: docs/plat/synquacer.rst
 :|F|: plat/socionext/synquacer/
 
@@ -777,13 +936,17 @@ UniPhier platform port
 :|F|: docs/plat/socionext-uniphier.rst
 :|F|: plat/socionext/uniphier/
 
-Xilinx platform port
-^^^^^^^^^^^^^^^^^^^^
+AMD-Xilinx platform port
+^^^^^^^^^^^^^^^^^^^^^^^^
 :|M|: Michal Simek <michal.simek@amd.com>
 :|G|: `michalsimek`_
-:|M|: Venkatesh Yadav Abbarapu <venkatesh.abbarapu@amd.com>
-:|G|: `venkatesh`_
+:|M|: Akshay Belsare <akshay.belsare@amd.com>
+:|G|: `Akshay-Belsare`_
+:|M|: Maheedhar Sai Bollapalli <maheedharsai.bollapalli@amd.com>
+:|G|: `maheedhar-bollapalli`_
+:|F|: docs/plat/amd\*
 :|F|: docs/plat/xilinx\*
+:|F|: plat/amd/
 :|F|: plat/xilinx/
 
 
@@ -850,13 +1013,11 @@ Cert_create tool
 :|G|: `ManishVB-Arm`_
 :|M|: Lauren Wehrmeister <Lauren.Wehrmeister@arm.com>
 :|G|: `laurenw-arm`_
-:|M|: Jimmy Brisson <jimmy.brisson@arm.com>
-:|G|: `jimmy-brisson`_
 :|F|: tools/cert_create/
 
 Encrypt_fw tool
 ^^^^^^^^^^^^^^^
-:|M|: Sumit Garg <sumit.garg@linaro.org>
+:|M|: Sumit Garg <sumit.garg@kernel.org>
 :|G|: `b49020`_
 :|F|: tools/encrypt_fw/
 
@@ -883,7 +1044,7 @@ Threat Model
 :|G|: `sandrine-bailleux-arm`_
 :|M|: Joanna Farley <joanna.farley@arm.com>
 :|G|: `joannafarley-arm`_
-:|M|: Raghu Krishnamurthy <raghu.ncstate@icloud.com>
+:|M|: Raghu Krishnamurthy <raghuoss@raghushome.com>
 :|G|: `raghuncstate`_
 :|M|: Varun Wadekar <vwadekar@nvidia.com>
 :|G|: `vwadekar`_
@@ -895,88 +1056,106 @@ Conventional Changelog Extensions
 :|G|: `CJKay`_
 :|F|: tools/conventional-changelog-tf-a
 
+.. _abdellatif-elkhlifi: https://github.com/abdellatif-elkhlifi
+.. _Akshay-Belsare: https://github.com/Akshay-Belsare
 .. _AlexeiFedorov: https://github.com/AlexeiFedorov
 .. _andersdellien-arm: https://github.com/andersdellien-arm
 .. _Andre-ARM: https://github.com/Andre-ARM
 .. _Anson-Huang: https://github.com/Anson-Huang
-.. _bijucdas: https://github.com/bijucdas
-.. _bryanodonoghue: https://github.com/bryanodonoghue
+.. _anukou: https://github.com/anukou
+.. _arugan02: https://github.com/arugan02
+.. _arve-android: https://github.com/arve-android
+.. _avifishman: https://github.com/avifishman
 .. _b49020: https://github.com/b49020
+.. _BenjaminLimJL: https://github.com/BenjaminLimJL
+.. _bijucdas: https://github.com/bijucdas
+.. _bipinravi-arm: https://github.com/bipinravi-arm
+.. _bryanodonoghue: https://github.com/bryanodonoghue
+.. _jidongsun: https://github.com/jidongsun
 .. _carlocaione: https://github.com/carlocaione
+.. _chandnich: https://github.com/chandnich
+.. _ChiaweiW: https://github.com/chiaweiw
+.. _CJKay: https://github.com/cjkay
 .. _danh-arm: https://github.com/danh-arm
 .. _davidvincze: https://github.com/davidvincze
+.. _diego-sueiro: https://github.com/diego-sueiro
+.. _divin-raj: https://github.com/divin-raj
 .. _etienne-lms: https://github.com/etienne-lms
 .. _glneo: https://github.com/glneo
+.. _govindraj-arm: https://github.com/govindraj-arm
+.. _gprocopciucnxp: https://github.com/gprocopciucnxp
 .. _grandpaul: https://github.com/grandpaul
+.. _harrisonmutai-arm: https://github.com/harrisonmutai-arm
+.. _hilamirandakuzi1: https://github.com/hilamirandakuzi1
+.. _hoyes: https://github.com/hoyes
 .. _hzhuang1: https://github.com/hzhuang1
+.. _hugues-kambampiana-arm: https://github.com/hugueskamba
 .. _JackyBai: https://github.com/JackyBai
+.. _J-Alves: https://github.com/J-Alves
+.. _jason-ch-chen: https://github.com/jason-ch-chen
+.. _javieralso-arm: https://github.com/javieralso-arm
+.. _jayanthchidanand-arm: https://github.com/jayanthchidanand-arm
 .. _jcorbier: https://github.com/jcorbier
 .. _jenswi-linaro: https://github.com/jenswi-linaro
+.. _JiafeiPan: https://github.com/JiafeiPan
+.. _joannafarley-arm: https://github.com/joannafarley-arm
 .. _jslater8: https://github.com/jslater8
 .. _jwerner-chromium: https://github.com/jwerner-chromium
 .. _kostapr: https://github.com/kostapr
 .. _lachitp: https://github.com/lachitp
-.. _ldts: https://github.com/ldts
+.. _laurenw-arm: https://github.com/laurenw-arm
+.. _leon-chen-mtk: https://github.com/leon-chen-mtk
+.. _linyidi: https://github.com/linyidi
+.. _loosper-arm: https://github.com/loosper-arm
+.. _madhukar-Arm: https://github.com/madhukar-Arm
+.. _maheedhar-bollapalli: https://github.com/maheedhar-bollapalli
+.. _manish-pandey-arm: https://github.com/manish-pandey-arm
+.. _ManishVB-Arm: https://github.com/ManishVB-Arm
+.. _marcbonnici: https://github.com/marcbonnici
+.. _marcone: https://github.com/marcone
+.. _mardyk01: https://github.com/mardyk01
 .. _marex: https://github.com/marex
 .. _masahir0y: https://github.com/masahir0y
+.. _masahisak: https://github.com/masahisak
+.. _max-shvetsov: https://github.com/max-shvetsov
+.. _meremST: https://github.com/meremST
 .. _michalsimek: https://github.com/michalsimek
 .. _mmind: https://github.com/mmind
 .. _MrVan: https://github.com/MrVan
-.. _mtk-rex-bc-chen: https://github.com/mtk-rex-bc-chen
-.. _leon-chen-mtk: https://github.com/leon-chen-mtk
-.. _jason-ch-chen: https://github.com/jason-ch-chen
-.. _linyidi: https://github.com/linyidi
+.. _Neal-liu: https://github.com/neal-liu
 .. _niej: https://github.com/niej
+.. _nmenon: https://github.com/nmenon
 .. _npoushin: https://github.com/npoushin
+.. _odeprez: https://github.com/odeprez
+.. _pangupta: https://github.com/pangupta
 .. _prabhakarlad: https://github.com/prabhakarlad
 .. _quic_mkf: https://github.com/quicmkf
+.. _quic_sgorecha: https://github.com/sgorecha
+.. _raghuncstate: https://github.com/raghuncstate
+.. _raymo200915: https://github.com/raymo200915
 .. _remi-triplefault: https://github.com/repk
 .. _rockchip-linux: https://github.com/rockchip-linux
+.. _rohit-arm: https://github.com/rohit-arm
+.. _o-tarhunakov: https://github.com/o-tarhunakov
+.. _rutigl: https://github.com/rutigl
 .. _sandrine-bailleux-arm: https://github.com/sandrine-bailleux-arm
-.. _sgorecha: https://github.com/sgorecha
 .. _shawnguo2: https://github.com/shawnguo2
+.. _sieumunt: https://github.com/sieumunt
 .. _smaeul: https://github.com/smaeul
 .. _soby-mathew: https://github.com/soby-mathew
 .. _sreekare: https://github.com/sreekare
 .. _stefanasimion: https://github.com/stefanasimion
 .. _stephan-gh: https://github.com/stephan-gh
-.. _sieumunt: https://github.com/sieumunt
-.. _BenjaminLimJL: https://github.com/BenjaminLimJL
 .. _thomas-arm: https://github.com/thomas-arm
 .. _TonyXie06: https://github.com/TonyXie06
 .. _TravMurav: https://github.com/TravMurav
-.. _vwadekar: https://github.com/vwadekar
-.. _venkatesh: https://github.com/vabbarap
-.. _Yann-lms: https://github.com/Yann-lms
-.. _manish-pandey-arm: https://github.com/manish-pandey-arm
-.. _mardyk01: https://github.com/mardyk01
-.. _odeprez: https://github.com/odeprez
-.. _bipinravi-arm: https://github.com/bipinravi-arm
-.. _joannafarley-arm: https://github.com/joannafarley-arm
-.. _ManishVB-Arm: https://github.com/ManishVB-Arm
-.. _max-shvetsov: https://github.com/max-shvetsov
-.. _javieralso-arm: https://github.com/javieralso-arm
-.. _laurenw-arm: https://github.com/laurenw-arm
-.. _J-Alves: https://github.com/J-Alves
-.. _madhukar-Arm: https://github.com/madhukar-Arm
-.. _raghuncstate: https://github.com/raghuncstate
-.. _CJKay: https://github.com/cjkay
-.. _nmenon: https://github.com/nmenon
-.. _anukou: https://github.com/anukou
-.. _chandnich: https://github.com/chandnich
-.. _abdellatif-elkhlifi: https://github.com/abdellatif-elkhlifi
-.. _vishnu-banavath: https://github.com/vishnu-banavath
-.. _vijayenthiran-arm: https://github.com/vijayenthiran-arm
-.. _arugan02: https://github.com/arugan02
 .. _uarif1: https://github.com/uarif1
-.. _pangupta: https://github.com/pangupta
-.. _JiafeiPan: https://github.com/JiafeiPan
-.. _arve-android: https://github.com/arve-android
-.. _marcone: https://github.com/marcone
-.. _marcbonnici: https://github.com/marcbonnici
-.. _jayanthchidanand-arm: https://github.com/jayanthchidanand-arm
-.. _bytefire: https://github.com/bytefire
-.. _rupsin01: https://github.com/rupsin01
-.. _jimmy-brisson: https://github.com/theotherjimmy
+.. _vijayenthiran-arm: https://github.com/vijayenthiran-arm
+.. _artkopotev: https://github.com/artkopotev
+.. _vwadekar: https://github.com/vwadekar
+.. _Yann-lms: https://github.com/Yann-lms
+.. _sjaypee208: https://github.com/sjaypee208
 
-.. _Project Maintenance Process: https://developer.trustedfirmware.org/w/collaboration/project-maintenance-process/
+--------------
+
+*Copyright (c) 2019-2025, Arm Limited and Contributors. All rights reserved.*

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2015-2025, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -56,6 +56,10 @@ int arm_validate_power_state(unsigned int power_state,
 	if (psci_get_pstate_id(power_state) != 0U)
 		return PSCI_E_INVALID_PARAMS;
 
+#if PSCI_OS_INIT_MODE
+	req_state->last_at_pwrlvl = psci_get_pstate_pwrlvl(power_state);
+#endif /* __PSCI_OS_INIT_MODE__ */
+
 	return PSCI_E_SUCCESS;
 }
 
@@ -79,12 +83,8 @@ int arm_validate_power_state(unsigned int power_state,
 	 *  search if the number of entries justify the additional complexity.
 	 */
 	for (i = 0; !!arm_pm_idle_states[i]; i++) {
-#if PSCI_OS_INIT_MODE
 		if ((power_state & ~ARM_LAST_AT_PLVL_MASK) ==
 					arm_pm_idle_states[i])
-#else
-		if (power_state == arm_pm_idle_states[i])
-#endif /* __PSCI_OS_INIT_MODE__ */
 			break;
 	}
 
@@ -148,7 +148,7 @@ void arm_system_pwr_domain_save(void)
 	/* Assert system power domain is available on the platform */
 	assert(PLAT_MAX_PWR_LVL >= ARM_PWR_LVL2);
 
-	plat_arm_gic_save();
+	gic_save();
 
 	/*
 	 * Unregister console now so that it is not registered for a second
@@ -177,7 +177,7 @@ void arm_system_pwr_domain_resume(void)
 	/* Assert system power domain is available on the platform */
 	assert(PLAT_MAX_PWR_LVL >= ARM_PWR_LVL2);
 
-	plat_arm_gic_resume();
+	gic_resume();
 
 	plat_arm_security_setup();
 	arm_configure_sys_timer();

@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2018-2020, Arm Limited and Contributors. All rights reserved.
  * Copyright (c) 2021-2022, Xilinx, Inc. All rights reserved.
- * Copyright (c) 2022-2023, Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2022-2025, Advanced Micro Devices, Inc. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -10,6 +10,8 @@
 #define PLATFORM_DEF_H
 
 #include <arch.h>
+#include <drivers/arm/gic_common.h>
+#include <plat_common.h>
 #include "versal_net_def.h"
 
 /*******************************************************************************
@@ -23,6 +25,9 @@
 #define PLATFORM_CORE_COUNT_PER_CLUSTER	U(4) /* 4 CPUs per cluster */
 
 #define PLATFORM_CORE_COUNT		(PLATFORM_CLUSTER_COUNT * PLATFORM_CORE_COUNT_PER_CLUSTER)
+
+#define E_INVALID_CORE_COUNT		-1
+#define E_INVALID_CLUSTER_COUNT		-3
 
 #define PLAT_MAX_PWR_LVL		U(2)
 #define PLAT_MAX_RET_STATE		U(1)
@@ -38,13 +43,13 @@
  */
 #ifndef VERSAL_NET_ATF_MEM_BASE
 # define BL31_BASE			U(0xBBF00000)
-# define BL31_LIMIT			U(0xBBFFFFFF)
+# define BL31_LIMIT			U(0xBC000000)
 #else
 # define BL31_BASE			U(VERSAL_NET_ATF_MEM_BASE)
-# define BL31_LIMIT			U(VERSAL_NET_ATF_MEM_BASE + VERSAL_NET_ATF_MEM_SIZE - 1)
+# define BL31_LIMIT			U(VERSAL_NET_ATF_MEM_BASE + VERSAL_NET_ATF_MEM_SIZE)
 # ifdef VERSAL_NET_ATF_MEM_PROGBITS_SIZE
 #  define BL31_PROGBITS_LIMIT		U(VERSAL_NET_ATF_MEM_BASE + \
-					  VERSAL_NET_ATF_MEM_PROGBITS_SIZE - 1)
+					  VERSAL_NET_ATF_MEM_PROGBITS_SIZE)
 # endif
 #endif
 
@@ -53,10 +58,10 @@
  ******************************************************************************/
 #ifndef VERSAL_NET_BL32_MEM_BASE
 # define BL32_BASE			U(0x60000000)
-# define BL32_LIMIT			U(0x7FFFFFFF)
+# define BL32_LIMIT			U(0x80000000)
 #else
 # define BL32_BASE			U(VERSAL_NET_BL32_MEM_BASE)
-# define BL32_LIMIT			U(VERSAL_NET_BL32_MEM_BASE + VERSAL_NET_BL32_MEM_SIZE - 1)
+# define BL32_LIMIT			U(VERSAL_NET_BL32_MEM_BASE + VERSAL_NET_BL32_MEM_SIZE)
 #endif
 
 /*******************************************************************************
@@ -69,10 +74,16 @@
 #endif
 
 /*******************************************************************************
+ * HIGH and LOW DDR MAX definitions
+ ******************************************************************************/
+#define PLAT_DDR_LOWMEM_MAX		U(0x80000000)
+#define PLAT_DDR_HIGHMEM_MAX		U(0x100000000)
+
+/*******************************************************************************
  * TSP  specific defines.
  ******************************************************************************/
 #define TSP_SEC_MEM_BASE		BL32_BASE
-#define TSP_SEC_MEM_SIZE		(BL32_LIMIT - BL32_BASE + 1U)
+#define TSP_SEC_MEM_SIZE		(BL32_LIMIT - BL32_BASE)
 
 /* ID of the secure physical generic timer interrupt used by the TSP */
 #define TSP_IRQ_SEC_PHY_TIMER		ARM_IRQ_SEC_PHY_TIMER
@@ -80,23 +91,52 @@
 /*******************************************************************************
  * Platform specific page table and MMU setup constants
  ******************************************************************************/
-#define PLAT_DDR_LOWMEM_MAX		U(0x80000000)
 
 #define PLAT_PHY_ADDR_SPACE_SIZE	(1ULL << 32U)
 #define PLAT_VIRT_ADDR_SPACE_SIZE	(1ULL << 32U)
-#if (BL31_LIMIT < PLAT_DDR_LOWMEM_MAX)
-#define MAX_MMAP_REGIONS		U(10)
+
+#define XILINX_OF_BOARD_DTB_MAX_SIZE	U(0x200000)
+
+#define PLAT_OCM_BASE			U(0xBBF00000)
+#define PLAT_OCM_LIMIT			U(0xBC000000)
+
+#define IS_TFA_IN_OCM(x)	((x >= PLAT_OCM_BASE) && (x < PLAT_OCM_LIMIT))
+
+#ifndef MAX_MMAP_REGIONS
+#if (defined(XILINX_OF_BOARD_DTB_ADDR) && !IS_TFA_IN_OCM(BL31_BASE))
+#define MAX_MMAP_REGIONS		9
 #else
-#define MAX_MMAP_REGIONS		U(9)
+#define MAX_MMAP_REGIONS		8
+#endif
 #endif
 
-#define MAX_XLAT_TABLES			U(8)
+#ifndef MAX_XLAT_TABLES
+#define MAX_XLAT_TABLES			U(9)
+#endif
 
 #define CACHE_WRITEBACK_SHIFT	U(6)
 #define CACHE_WRITEBACK_GRANULE	(1 << CACHE_WRITEBACK_SHIFT)
 
-#define PLAT_GICD_BASE_VALUE	U(0xE2000000)
-#define PLAT_GICR_BASE_VALUE	U(0xE2060000)
+#define PLAT_ARM_GICD_BASE	U(0xE2000000)
+#define PLAT_ARM_GICR_BASE	U(0xE2060000)
+
+/* interrupt priorities when SDEI is enabled:
+ * RAS in future is planned to have highest priority (lower value 0x10)
+ * followed by IPI and SDEI exceptions in a step of 0x10.
+ */
+
+#if SDEI_SUPPORT
+#define VERSAL_NET_SDEI_SGI_PRIVATE     U(8)
+#define PLAT_SDEI_CRITICAL_PRI		0x30
+#define PLAT_SDEI_NORMAL_PRI		0x40
+#define PLAT_PRI_BITS			U(3)
+#define PLAT_IPI_PRI			0x20
+
+#define PLAT_EHF_DESC	EHF_PRI_DESC(PLAT_PRI_BITS, PLAT_IPI_PRI)
+
+#define VERSAL_NET_SDEI_SH_EVENT_0	U(200)
+#define VERSAL_NET_SDEI_PRV_EV		U(201)
+#endif
 
 /*
  * Define a list of Group 1 Secure and Group 0 interrupts as per GICv3
@@ -106,13 +146,29 @@
 #define PLAT_VERSAL_NET_IPI_IRQ	89
 #define PLAT_VERSAL_IPI_IRQ	PLAT_VERSAL_NET_IPI_IRQ
 
-#define PLAT_VERSAL_NET_G1S_IRQ_PROPS(grp) \
+#if SDEI_SUPPORT
+#define PLAT_ARM_G1S_IRQ_PROPS(grp) \
+	INTR_PROP_DESC(VERSAL_NET_IRQ_SEC_PHY_TIMER, PLAT_IPI_PRI, grp, \
+			GIC_INTR_CFG_LEVEL)
+
+#define PLAT_ARM_G0_IRQ_PROPS(grp) \
+	INTR_PROP_DESC(PLAT_VERSAL_IPI_IRQ, PLAT_IPI_PRI, grp, \
+			GIC_INTR_CFG_EDGE), \
+	INTR_PROP_DESC(CPU_PWR_DOWN_REQ_INTR, PLAT_IPI_PRI, grp, \
+			GIC_INTR_CFG_EDGE), \
+	INTR_PROP_DESC(VERSAL_NET_SDEI_SGI_PRIVATE, PLAT_SDEI_NORMAL_PRI, grp, \
+			GIC_INTR_CFG_EDGE)
+#else
+#define PLAT_ARM_G1S_IRQ_PROPS(grp) \
 	INTR_PROP_DESC(VERSAL_NET_IRQ_SEC_PHY_TIMER, GIC_HIGHEST_SEC_PRIORITY, grp, \
 			GIC_INTR_CFG_LEVEL)
 
-#define PLAT_VERSAL_NET_G0_IRQ_PROPS(grp) \
+#define PLAT_ARM_G0_IRQ_PROPS(grp) \
 	INTR_PROP_DESC(PLAT_VERSAL_IPI_IRQ, GIC_HIGHEST_SEC_PRIORITY, grp, \
 			GIC_INTR_CFG_EDGE), \
+	INTR_PROP_DESC(CPU_PWR_DOWN_REQ_INTR, GIC_HIGHEST_SEC_PRIORITY, grp, \
+			GIC_INTR_CFG_EDGE)
+#endif
 
 #define IRQ_MAX		200U
 

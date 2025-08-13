@@ -191,18 +191,6 @@ static void qti_node_power_off(const psci_power_state_t *target_state)
 	}
 }
 
-#if PSCI_OS_INIT_MODE
-static int qti_node_suspend(const psci_power_state_t *target_state)
-{
-	qtiseclib_psci_node_suspend((const uint8_t *)target_state->
-				    pwr_domain_state);
-	if (is_cpu_off(target_state)) {
-		plat_qti_gic_cpuif_disable();
-		qti_set_cpupwrctlr_val();
-	}
-	return PSCI_E_SUCCESS;
-}
-#else
 static void qti_node_suspend(const psci_power_state_t *target_state)
 {
 	qtiseclib_psci_node_suspend((const uint8_t *)target_state->
@@ -212,7 +200,6 @@ static void qti_node_suspend(const psci_power_state_t *target_state)
 		qti_set_cpupwrctlr_val();
 	}
 }
-#endif
 
 static void qti_node_suspend_finish(const psci_power_state_t *target_state)
 {
@@ -222,14 +209,6 @@ static void qti_node_suspend_finish(const psci_power_state_t *target_state)
 	if (is_cpu_off(target_state)) {
 		plat_qti_gic_cpuif_enable();
 	}
-}
-
-__dead2 void qti_domain_power_down_wfi(const psci_power_state_t *target_state)
-{
-
-	/* For now just do WFI - add any target specific handling if needed */
-	psci_power_down_wfi();
-	/* We should never reach here */
 }
 
 static __dead2 void assert_ps_hold(void)
@@ -273,6 +252,10 @@ void qti_get_sys_suspend_power_state(psci_power_state_t *req_state)
 		    state_id & QTI_LOCAL_PSTATE_MASK;
 		state_id >>= QTI_LOCAL_PSTATE_WIDTH;
 	}
+
+#if PSCI_OS_INIT_MODE
+	req_state->last_at_pwrlvl = PLAT_MAX_PWR_LVL;
+#endif
 }
 
 /*
@@ -286,7 +269,6 @@ const plat_psci_ops_t plat_qti_psci_pm_ops = {
 	.pwr_domain_off = qti_node_power_off,
 	.pwr_domain_suspend = qti_node_suspend,
 	.pwr_domain_suspend_finish = qti_node_suspend_finish,
-	.pwr_domain_pwr_down_wfi = qti_domain_power_down_wfi,
 	.system_off = qti_system_off,
 	.system_reset = qti_system_reset,
 	.get_node_hw_state = NULL,

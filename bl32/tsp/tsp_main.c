@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2022, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2013-2025, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -11,7 +11,9 @@
 #include <arch_features.h>
 #include <arch_helpers.h>
 #include <bl32/tsp/tsp.h>
+#include <bl32/tsp/tsp_el1_context.h>
 #include <common/bl_common.h>
+#include <common/build_message.h>
 #include <common/debug.h>
 #include <lib/spinlock.h>
 #include <plat/common/platform.h>
@@ -27,7 +29,7 @@
  ******************************************************************************/
 uint64_t tsp_main(void)
 {
-	NOTICE("TSP: %s\n", version_string);
+	NOTICE("TSP: %s\n", build_version_string);
 	NOTICE("TSP: %s\n", build_message);
 	INFO("TSP: Total memory base : 0x%lx\n", (unsigned long) BL32_BASE);
 	INFO("TSP: Total memory size : 0x%lx bytes\n", BL32_TOTAL_SIZE);
@@ -45,11 +47,13 @@ uint64_t tsp_main(void)
 	tsp_stats[linear_id].eret_count++;
 	tsp_stats[linear_id].cpu_on_count++;
 
-	INFO("TSP: cpu 0x%lx: %d smcs, %d erets %d cpu on requests\n",
+	INFO("TSP: cpu 0x%lx: %u smcs, %u erets %u cpu on requests\n",
 	     read_mpidr(),
 	     tsp_stats[linear_id].smc_count,
 	     tsp_stats[linear_id].eret_count,
 	     tsp_stats[linear_id].cpu_on_count);
+
+	console_flush();
 	return (uint64_t) &tsp_vector_table;
 }
 
@@ -71,7 +75,7 @@ smc_args_t *tsp_cpu_on_main(void)
 	tsp_stats[linear_id].cpu_on_count++;
 
 	INFO("TSP: cpu 0x%lx turned on\n", read_mpidr());
-	INFO("TSP: cpu 0x%lx: %d smcs, %d erets %d cpu on requests\n",
+	INFO("TSP: cpu 0x%lx: %u smcs, %u erets %u cpu on requests\n",
 		read_mpidr(),
 		tsp_stats[linear_id].smc_count,
 		tsp_stats[linear_id].eret_count,
@@ -108,7 +112,7 @@ smc_args_t *tsp_cpu_off_main(uint64_t arg0,
 	tsp_stats[linear_id].cpu_off_count++;
 
 	INFO("TSP: cpu 0x%lx off request\n", read_mpidr());
-	INFO("TSP: cpu 0x%lx: %d smcs, %d erets %d cpu off requests\n",
+	INFO("TSP: cpu 0x%lx: %u smcs, %u erets %u cpu off requests\n",
 		read_mpidr(),
 		tsp_stats[linear_id].smc_count,
 		tsp_stats[linear_id].eret_count,
@@ -146,7 +150,7 @@ smc_args_t *tsp_cpu_suspend_main(uint64_t arg0,
 	tsp_stats[linear_id].eret_count++;
 	tsp_stats[linear_id].cpu_suspend_count++;
 
-	INFO("TSP: cpu 0x%lx: %d smcs, %d erets %d cpu suspend requests\n",
+	INFO("TSP: cpu 0x%lx: %u smcs, %u erets %u cpu suspend requests\n",
 		read_mpidr(),
 		tsp_stats[linear_id].smc_count,
 		tsp_stats[linear_id].eret_count,
@@ -180,9 +184,9 @@ smc_args_t *tsp_cpu_resume_main(uint64_t max_off_pwrlvl,
 	tsp_stats[linear_id].eret_count++;
 	tsp_stats[linear_id].cpu_resume_count++;
 
-	INFO("TSP: cpu 0x%lx resumed. maximum off power level %" PRId64 "\n",
+	INFO("TSP: cpu 0x%lx resumed. maximum off power level %" PRIu64 "\n",
 	     read_mpidr(), max_off_pwrlvl);
-	INFO("TSP: cpu 0x%lx: %d smcs, %d erets %d cpu resume requests\n",
+	INFO("TSP: cpu 0x%lx: %u smcs, %u erets %u cpu resume requests\n",
 		read_mpidr(),
 		tsp_stats[linear_id].smc_count,
 		tsp_stats[linear_id].eret_count,
@@ -220,7 +224,7 @@ smc_args_t *tsp_smc_handler(uint64_t func,
 	INFO("TSP: cpu 0x%lx received %s smc 0x%" PRIx64 "\n", read_mpidr(),
 		((func >> 31) & 1) == 1 ? "fast" : "yielding",
 		func);
-	INFO("TSP: cpu 0x%lx: %d smcs, %d erets\n", read_mpidr(),
+	INFO("TSP: cpu 0x%lx: %u smcs, %u erets\n", read_mpidr(),
 		tsp_stats[linear_id].smc_count,
 		tsp_stats[linear_id].eret_count);
 
@@ -236,13 +240,13 @@ smc_args_t *tsp_smc_handler(uint64_t func,
 	service_arg0 = (uint64_t)service_args;
 	service_arg1 = (uint64_t)(service_args >> 64U);
 
-#if CTX_INCLUDE_MTE_REGS
 	/*
-	 * Write a dummy value to an MTE register, to simulate usage in the
+	 * Write a dummy value to an MTE2 register, to simulate usage in the
 	 * secure world
 	 */
-	write_gcr_el1(0x99);
-#endif
+	if (is_feat_mte2_supported()) {
+		write_gcr_el1(0x99);
+	}
 
 	/* Determine the function to perform based on the function ID */
 	switch (TSP_BARE_FID(func)) {
@@ -274,6 +278,17 @@ smc_args_t *tsp_smc_handler(uint64_t func,
 		results[1] = dit;
 		/* Toggle the dit bit */
 		write_dit(service_arg0 != 0U ? 0 : DIT_BIT);
+		break;
+	case TSP_MODIFY_EL1_CTX:
+		/*
+		 * Write dummy values to EL1 context registers, to simulate
+		 * their usage in the secure world.
+		 */
+		if (arg1 == TSP_CORRUPT_EL1_REGS) {
+			modify_el1_ctx_regs(TSP_CORRUPT_EL1_REGS);
+		} else {
+			modify_el1_ctx_regs(TSP_RESTORE_EL1_REGS);
+		}
 		break;
 	default:
 		break;

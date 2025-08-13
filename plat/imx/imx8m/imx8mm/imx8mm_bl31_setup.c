@@ -27,7 +27,10 @@
 #include <imx_uart.h>
 #include <imx_rdc.h>
 #include <imx8m_caam.h>
+#include <imx8m_ccm.h>
 #include <imx8m_csu.h>
+#include <imx8m_snvs.h>
+#include <plat_common.h>
 #include <plat_imx8.h>
 
 #define TRUSTY_PARAMS_LEN_BYTES      (4096*2)
@@ -59,7 +62,7 @@ static const struct aipstz_cfg aipstz[] = {
 	{0},
 };
 
-static const struct imx_rdc_cfg rdc[] = {
+static struct imx_rdc_cfg rdc[] = {
 	/* Master domain assignment */
 	RDC_MDAn(RDC_MDA_M4, DID1),
 
@@ -75,11 +78,31 @@ static const struct imx_rdc_cfg rdc[] = {
 
 static const struct imx_csu_cfg csu_cfg[] = {
 	/* peripherals csl setting */
-	CSU_CSLx(0x1, CSU_SEC_LEVEL_0, UNLOCKED),
+	CSU_CSLx(CSU_CSL_RDC, CSU_SEC_LEVEL_3, LOCKED),
+	CSU_CSLx(CSU_CSL_TZASC, CSU_SEC_LEVEL_5, LOCKED),
+	CSU_CSLx(CSU_CSL_CSU, CSU_SEC_LEVEL_5, LOCKED),
 
 	/* master HP0~1 */
 
 	/* SA setting */
+	CSU_SA(CSU_SA_M4, NON_SEC_ACCESS, LOCKED),
+	CSU_SA(CSU_SA_SDMA1, NON_SEC_ACCESS, LOCKED),
+	CSU_SA(CSU_SA_PCIE_CTRL1, NON_SEC_ACCESS, LOCKED),
+	CSU_SA(CSU_SA_USB1, NON_SEC_ACCESS, LOCKED),
+	CSU_SA(CSU_SA_USB2, NON_SEC_ACCESS, LOCKED),
+	CSU_SA(CSU_SA_VPU, NON_SEC_ACCESS, LOCKED),
+	CSU_SA(CSU_SA_GPU, NON_SEC_ACCESS, LOCKED),
+	CSU_SA(CSU_SA_APBHDMA, NON_SEC_ACCESS, LOCKED),
+	CSU_SA(CSU_SA_ENET, NON_SEC_ACCESS, LOCKED),
+	CSU_SA(CSU_SA_USDHC1, NON_SEC_ACCESS, LOCKED),
+	CSU_SA(CSU_SA_USDHC2, NON_SEC_ACCESS, LOCKED),
+	CSU_SA(CSU_SA_USDHC3, NON_SEC_ACCESS, LOCKED),
+	CSU_SA(CSU_SA_HUGO, NON_SEC_ACCESS, LOCKED),
+	CSU_SA(CSU_SA_DAP, NON_SEC_ACCESS, LOCKED),
+	CSU_SA(CSU_SA_SDMA2, NON_SEC_ACCESS, LOCKED),
+	CSU_SA(CSU_SA_SDMA3, NON_SEC_ACCESS, LOCKED),
+	CSU_SA(CSU_SA_LCDIF, NON_SEC_ACCESS, LOCKED),
+	CSU_SA(CSU_SA_CSI, NON_SEC_ACCESS, LOCKED),
 
 	/* HP control setting */
 
@@ -130,8 +153,9 @@ void bl31_tzc380_setup(void)
 void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
 		u_register_t arg2, u_register_t arg3)
 {
+	unsigned int console_base = IMX_BOOT_UART_BASE;
 	static console_t console;
-	int i;
+	int i, ret;
 
 	/* Enable CSU NS access permission */
 	for (i = 0; i < 64; i++) {
@@ -140,11 +164,15 @@ void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
 
 	imx_aipstz_init(aipstz);
 
-	imx_rdc_init(rdc);
+	if (console_base == 0U) {
+		console_base = imx8m_uart_get_base();
+	}
+
+	imx_rdc_init(rdc, console_base);
 
 	imx_csu_init(csu_cfg);
 
-	console_imx_uart_register(IMX_BOOT_UART_BASE, IMX_BOOT_UART_CLK_IN_HZ,
+	console_imx_uart_register(console_base, IMX_BOOT_UART_CLK_IN_HZ,
 		IMX_CONSOLE_BAUDRATE, &console);
 	/* This console is only used for boot stage */
 	console_set_scope(&console, CONSOLE_FLAG_BOOT);
@@ -180,6 +208,17 @@ void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
 	bl32_image_ep_info.args.arg3 = BL32_FDT_OVERLAY_ADDR;
 #endif
 #endif
+	ret = imx_bl31_params_parse(arg0, IMX_NS_OCRAM_SIZE, IMX_NS_OCRAM_BASE,
+				    &bl32_image_ep_info, &bl33_image_ep_info);
+	if (ret != 0) {
+		ret = imx_bl31_params_parse(arg0, IMX_TCM_BASE, IMX_TCM_SIZE,
+					    &bl32_image_ep_info,
+					    &bl33_image_ep_info);
+	}
+
+#if !defined(SPD_opteed) && !defined(SPD_trusty)
+	enable_snvs_privileged_access();
+#endif
 
 	bl31_tzc380_setup();
 }
@@ -202,8 +241,10 @@ void bl31_plat_arch_setup(void)
 #if USE_COHERENT_MEM
 		MAP_COHERENT_MEM,
 #endif
+#if defined(SPD_opteed) || defined(SPD_trusty)
 		/* Map TEE memory */
 		MAP_BL32_TOTAL,
+#endif
 		{0}
 	};
 

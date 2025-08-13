@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2021, Arm Limited and Contributors. All rights reserved.
+ * Copyright (c) 2014-2025, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -23,10 +23,10 @@
 /* Size of cpu_context array */
 #define CPU_DATA_CONTEXT_NUM		3
 /* Offset of cpu_ops_ptr, size 8 bytes */
-#define CPU_DATA_CPU_OPS_PTR		0x18
+#define CPU_DATA_CPU_OPS_PTR		0x20
 #else /* ENABLE_RME */
 #define CPU_DATA_CONTEXT_NUM		2
-#define CPU_DATA_CPU_OPS_PTR		0x10
+#define CPU_DATA_CPU_OPS_PTR		0x18
 #endif /* ENABLE_RME */
 
 #if ENABLE_PAUTH
@@ -47,8 +47,9 @@
 #if CRASH_REPORTING
 #error "Crash reporting is not supported in AArch32"
 #endif
-#define CPU_DATA_CPU_OPS_PTR		0x0
-#define CPU_DATA_CRASH_BUF_OFFSET	(0x4 + PSCI_CPU_DATA_SIZE)
+#define WARMBOOT_EP_INFO		0x0
+#define CPU_DATA_CPU_OPS_PTR		0x4
+#define CPU_DATA_CRASH_BUF_OFFSET	(CPU_DATA_CPU_OPS_PTR + PSCI_CPU_DATA_SIZE)
 
 #endif	/* __aarch64__ */
 
@@ -59,8 +60,19 @@
 #define CPU_DATA_CRASH_BUF_END		CPU_DATA_CRASH_BUF_OFFSET
 #endif
 
+/* buffer space for EHF data is sizeof(pe_exc_data_t) */
+#define CPU_DATA_EHF_DATA_SIZE		8
+#define CPU_DATA_EHF_DATA_BUF_OFFSET	CPU_DATA_CRASH_BUF_END
+
+#if defined(IMAGE_BL31) && EL3_EXCEPTION_HANDLING
+#define CPU_DATA_EHF_DATA_BUF_END	(CPU_DATA_EHF_DATA_BUF_OFFSET + \
+						CPU_DATA_EHF_DATA_SIZE)
+#else
+#define CPU_DATA_EHF_DATA_BUF_END	CPU_DATA_EHF_DATA_BUF_OFFSET
+#endif	/* EL3_EXCEPTION_HANDLING */
+
 /* cpu_data size is the data size rounded up to the platform cache line size */
-#define CPU_DATA_SIZE			(((CPU_DATA_CRASH_BUF_END + \
+#define CPU_DATA_SIZE			(((CPU_DATA_EHF_DATA_BUF_END + \
 					CACHE_WRITEBACK_GRANULE - 1) / \
 						CACHE_WRITEBACK_GRANULE) * \
 							CACHE_WRITEBACK_GRANULE)
@@ -68,7 +80,12 @@
 #if ENABLE_RUNTIME_INSTRUMENTATION
 /* Temporary space to store PMF timestamps from assembly code */
 #define CPU_DATA_PMF_TS_COUNT		1
-#define CPU_DATA_PMF_TS0_OFFSET		CPU_DATA_CRASH_BUF_END
+#if __aarch64__
+#define CPU_DATA_PMF_TS0_OFFSET		CPU_DATA_EHF_DATA_BUF_END
+#else
+/* alignment */
+#define CPU_DATA_PMF_TS0_OFFSET		(CPU_DATA_EHF_DATA_BUF_END + 8)
+#endif
 #define CPU_DATA_PMF_TS0_IDX		0
 #endif
 
@@ -120,7 +137,8 @@ typedef struct cpu_data {
 #ifdef __aarch64__
 	void *cpu_context[CPU_DATA_CONTEXT_NUM];
 #endif /* __aarch64__ */
-	uintptr_t cpu_ops_ptr;
+	entry_point_info_t *warmboot_ep_info;
+	struct cpu_ops *cpu_ops_ptr;
 	struct psci_cpu_data psci_svc_cpu_data;
 #if ENABLE_PAUTH
 	uint64_t apiakey[2];
@@ -159,6 +177,12 @@ CASSERT(CPU_DATA_CRASH_BUF_OFFSET == __builtin_offsetof
 	assert_cpu_data_crash_stack_offset_mismatch);
 #endif
 
+#if defined(IMAGE_BL31) && EL3_EXCEPTION_HANDLING
+CASSERT(CPU_DATA_EHF_DATA_BUF_OFFSET == __builtin_offsetof
+	(cpu_data_t, ehf_data),
+	assert_cpu_data_ehf_stack_offset_mismatch);
+#endif
+
 CASSERT(CPU_DATA_SIZE == sizeof(cpu_data_t),
 		assert_cpu_data_size_mismatch);
 
@@ -172,16 +196,19 @@ CASSERT(CPU_DATA_PMF_TS0_OFFSET == __builtin_offsetof
 		assert_cpu_data_pmf_ts0_offset_mismatch);
 #endif
 
-struct cpu_data *_cpu_data_by_index(uint32_t cpu_index);
+static inline cpu_data_t *_cpu_data_by_index(unsigned int cpu_index)
+{
+	return &percpu_data[cpu_index];
+}
 
 #ifdef __aarch64__
 /* Return the cpu_data structure for the current CPU. */
-static inline struct cpu_data *_cpu_data(void)
+static inline cpu_data_t *_cpu_data(void)
 {
 	return (cpu_data_t *)read_tpidr_el3();
 }
 #else
-struct cpu_data *_cpu_data(void);
+cpu_data_t *_cpu_data(void);
 #endif
 
 /*
@@ -190,7 +217,7 @@ struct cpu_data *_cpu_data(void);
  * an access is not out-of-bounds. The function assumes security_state is
  * valid.
  */
-static inline context_pas_t get_cpu_context_index(uint32_t security_state)
+static inline context_pas_t get_cpu_context_index(size_t security_state)
 {
 	if (security_state == SECURE) {
 		return CPU_CONTEXT_SECURE;
@@ -213,7 +240,6 @@ static inline context_pas_t get_cpu_context_index(uint32_t security_state)
  * APIs for initialising and accessing per-cpu data
  *************************************************************************/
 
-void init_cpu_data_ptr(void);
 void init_cpu_ops(void);
 
 #define get_cpu_data(_m)		   _cpu_data()->_m

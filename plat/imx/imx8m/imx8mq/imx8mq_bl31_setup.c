@@ -26,6 +26,7 @@
 #include <imx_aipstz.h>
 #include <imx_uart.h>
 #include <imx8m_caam.h>
+#include <imx8m_ccm.h>
 #include <plat_imx8.h>
 
 #define TRUSTY_PARAMS_LEN_BYTES      (4096*2)
@@ -51,6 +52,8 @@ static const mmap_region_t imx_mmap[] = {
 	MAP_REGION_FLAT(IMX_GIC_BASE, IMX_GIC_SIZE, MT_DEVICE | MT_RW), /* GIC map */
 	MAP_REGION_FLAT(IMX_DDRPHY_BASE, IMX_DDR_IPS_SIZE, MT_DEVICE | MT_RW), /* DDRMIX map */
 	MAP_REGION_FLAT(IMX_DRAM_BASE, IMX_DRAM_SIZE, MT_MEMORY | MT_RW | MT_NS),
+	MAP_REGION_FLAT(IMX_CAAM_RAM_BASE, IMX_CAAM_RAM_SIZE, MT_MEMORY | MT_RW), /* CAMM RAM */
+	MAP_REGION_FLAT(IMX_NS_OCRAM_BASE, IMX_NS_OCRAM_SIZE, MT_MEMORY | MT_RW), /* NS OCRAM */
 	{0},
 };
 
@@ -145,6 +148,7 @@ static void bl31_tz380_setup(void)
 void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
 			u_register_t arg2, u_register_t arg3)
 {
+	unsigned int console_base = IMX_BOOT_UART_BASE;
 	static console_t console;
 	int i;
 	/* enable CSU NS access permission */
@@ -154,7 +158,11 @@ void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
 
 	imx_aipstz_init(aipstz);
 
-	console_imx_uart_register(IMX_BOOT_UART_BASE, IMX_BOOT_UART_CLK_IN_HZ,
+	if (console_base == 0U) {
+		console_base = imx8m_uart_get_base();
+	}
+
+	console_imx_uart_register(console_base, IMX_BOOT_UART_CLK_IN_HZ,
 		IMX_CONSOLE_BAUDRATE, &console);
 	/* This console is only used for boot stage */
 	console_set_scope(&console, CONSOLE_FLAG_BOOT);
@@ -201,13 +209,19 @@ void bl31_plat_arch_setup(void)
 				MT_MEMORY | MT_RW | MT_SECURE),
 		MAP_REGION_FLAT(BL_CODE_BASE, BL_CODE_END - BL_CODE_BASE,
 				MT_MEMORY | MT_RO | MT_SECURE),
+#if SEPARATE_NOBITS_REGION
+		MAP_REGION_FLAT(BL_NOBITS_BASE, BL_NOBITS_END - BL_NOBITS_BASE,
+				MT_RW_DATA | MT_SECURE),
+#endif
 #if USE_COHERENT_MEM
 		MAP_REGION_FLAT(BL_COHERENT_RAM_BASE,
 				BL_COHERENT_RAM_END - BL_COHERENT_RAM_BASE,
 				MT_DEVICE | MT_RW | MT_SECURE),
 #endif
+#if defined(SPD_opteed) || defined(SPD_trusty)
 		/* Map TEE memory */
 		MAP_REGION_FLAT(BL32_BASE, BL32_SIZE, MT_MEMORY | MT_RW),
+#endif
 		{0},
 	};
 

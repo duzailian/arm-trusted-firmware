@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2022, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2013-2025, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -85,6 +85,10 @@
 #define __EL3_LP_DESCS_START__		Load$$__EL3_LP_DESCS__$$Base
 #define __EL3_LP_DESCS_END__		Load$$__EL3_LP_DESCS__$$Limit
 #endif
+#if ENABLE_SPMD_LP
+#define __SPMD_LP_DESCS_START__	Load$$__SPMD_LP_DESCS__$$Base
+#define __SPMD_LP_DESCS_END__		Load$$__SPMD_LP_DESCS__$$Limit
+#endif
 #define __RW_START__			Load$$LR$$LR_RW_DATA$$Base
 #define __RW_END__			Load$$LR$$LR_END$$Base
 #define __SPM_SHIM_EXCEPTIONS_START__	Load$$__SPM_SHIM_EXCEPTIONS__$$Base
@@ -164,6 +168,15 @@ typedef struct meminfo {
 } meminfo_t;
 
 /*******************************************************************************
+ * Structure used for conveying the location and size of the heap allocated for
+ * use by the cryptography library.
+ * *****************************************************************************/
+struct crypto_heap_info {
+	void *addr;
+	size_t size;
+};
+
+/*******************************************************************************
  * Function & variable prototypes
  ******************************************************************************/
 int load_auth_image(unsigned int image_id, image_info_t *image_data);
@@ -176,8 +189,6 @@ int load_auth_image(unsigned int image_id, image_info_t *image_data);
 void dyn_disable_auth(void);
 #endif
 
-extern const char build_message[];
-extern const char version_string[];
 const char *get_version(void);
 
 void print_entry_point_info(const entry_point_info_t *ep_info);
@@ -187,8 +198,6 @@ struct mmap_region;
 
 void setup_page_tables(const struct mmap_region *bl_regions,
 			   const struct mmap_region *plat_regions);
-
-void bl_handle_pauth(void);
 
 #endif /*__ASSEMBLER__*/
 

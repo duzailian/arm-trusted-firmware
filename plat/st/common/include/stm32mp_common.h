@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018-2023, STMicroelectronics - All Rights Reserved
+ * Copyright (C) 2018-2024, STMicroelectronics - All Rights Reserved
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -14,14 +14,26 @@
 #define JEDEC_ST_BKID U(0x0)
 #define JEDEC_ST_MFID U(0x20)
 
+#define STM32MP_CHIP_SEC_CLOSED		U(0x34D9CCC5)
+#define STM32MP_CHIP_SEC_OPEN		U(0xA764D182)
+
+/* FWU configuration (max supported value is 15) */
+#define FWU_MAX_TRIAL_REBOOT		U(3)
+
+/* Define maximum page size for NAND devices */
+#define PLATFORM_MTD_MAX_PAGE_SIZE	U(0x1000)
+
+/* Needed by STM32CubeProgrammer support */
+#define DWL_BUFFER_SIZE			U(0x01000000)
+
 /* Functions to save and get boot context address given by ROM code */
 void stm32mp_save_boot_ctx_address(uintptr_t address);
 uintptr_t stm32mp_get_boot_ctx_address(void);
 uint16_t stm32mp_get_boot_itf_selected(void);
 
 bool stm32mp_is_single_core(void);
-bool stm32mp_is_closed_device(void);
 bool stm32mp_is_auth_supported(void);
+uint32_t stm32mp_check_closed_device(void);
 
 /* Return the base address of the DDR controller */
 uintptr_t stm32mp_ddrctrl_base(void);
@@ -65,13 +77,7 @@ uintptr_t get_uart_address(uint32_t instance_nb);
 /* Setup the UART console */
 int stm32mp_uart_console_setup(void);
 
-#if STM32MP_EARLY_CONSOLE
-void stm32mp_setup_early_console(void);
-#else
-static inline void stm32mp_setup_early_console(void)
-{
-}
-#endif
+bool stm32mp_is_wakeup_from_standby(void);
 
 /*
  * Platform util functions for the GPIO driver
@@ -116,6 +122,10 @@ void stm32mp_io_setup(void);
 int stm32mp_map_ddr_non_cacheable(void);
 int stm32mp_unmap_ddr(void);
 
+/* Functions to map RETRAM, and unmap it */
+int stm32mp_map_retram(void);
+int stm32mp_unmap_retram(void);
+
 /* Function to save boot info */
 void stm32_save_boot_info(boot_api_context_t *boot_context);
 /* Function to get boot peripheral info */
@@ -127,9 +137,11 @@ uintptr_t stm32_get_bkpr_boot_mode_addr(void);
 void stm32_display_board_info(uint32_t board_id);
 
 #if PSA_FWU_SUPPORT
-void stm32mp1_fwu_set_boot_idx(void);
+uintptr_t stm32_get_bkpr_fwu_info_addr(void);
+void stm32_fwu_set_boot_idx(void);
 uint32_t stm32_get_and_dec_fwu_trial_boot_cnt(void);
 void stm32_set_max_fwu_trial_boot_cnt(void);
+void stm32_clear_fwu_trial_boot_cnt(void);
 #endif /* PSA_FWU_SUPPORT */
 
 #endif /* STM32MP_COMMON_H */

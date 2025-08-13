@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Arm Limited. All rights reserved.
+ * Copyright (c) 2022-2025, Arm Limited. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -17,7 +17,7 @@ typedef struct {
 
 typedef struct {
 	bool tpm_based_hash_support;
-	uint32_t firmware_hash_algorithm;
+	uint16_t firmware_hash_algorithm;
 } plat_drtm_tpm_features_t;
 
 typedef struct {
@@ -26,7 +26,7 @@ typedef struct {
 } __attribute__((packed)) drtm_mem_region_t;
 
 /*
- * Memory region descriptor table structure as per DRTM beta0 section 3.13
+ * Memory region descriptor table structure as per DRTM 1.0 section 3.13
  * Table 11 MEMORY_REGION_DESCRIPTOR_TABLE
  */
 typedef struct {
@@ -59,6 +59,8 @@ uint64_t plat_drtm_get_min_size_normal_world_dce(void);
 uint64_t plat_drtm_get_tcb_hash_table_size(void);
 uint64_t plat_drtm_get_imp_def_dlme_region_size(void);
 uint64_t plat_drtm_get_tcb_hash_features(void);
+uint64_t plat_drtm_get_acpi_tables_region_size(void);
+uint64_t plat_drtm_get_dlme_img_auth_features(void);
 
 /* DRTM error handling functions */
 int plat_set_drtm_error(uint64_t error_code);

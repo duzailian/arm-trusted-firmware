@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2023, Intel Corporation. All rights reserved.
+ * Copyright (c) 2019-2022, Intel Corporation. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -11,8 +11,8 @@
 #include <lib/mmio.h>
 
 #include "n5x_clock_manager.h"
-#include "socfpga_system_manager.h"
-
+#include "n5x_system_manager.h"
+#include "socfpga_handoff.h"
 
 uint64_t clk_get_pll_output_hz(void)
 {
@@ -87,6 +87,7 @@ uint64_t get_l4_clk(void)
 
 	default:
 		return 0;
+		break;
 	}
 
 	clock /= BIT(((get_clk_freq(CLKMGR_MAINPLL_NOCDIV)) >>
@@ -125,6 +126,7 @@ uint32_t get_mpu_clk(void)
 
 	default:
 		return 0;
+		break;
 	}
 
 	clock /= BIT(((get_clk_freq(CLKMGR_MAINPLL_NOCDIV)) >>
@@ -148,7 +150,22 @@ uint32_t get_cpu_clk(void)
 {
 	uint32_t cpu_clk = 0;
 
-	cpu_clk = get_mpu_clk()/PLAT_HZ_CONVERT_TO_MHZ;
+	cpu_clk = get_l4_clk()/PLAT_HZ_CONVERT_TO_MHZ;
 
 	return cpu_clk;
+}
+
+/* Return mpu_periph_clk clock frequency */
+uint32_t get_mpu_periph_clk(void)
+{
+	uint32_t mpu_periph_clk = 0;
+	/* mpu_periph_clk is mpu_clk, via a static /4 divider  */
+	mpu_periph_clk = (get_mpu_clk()/4)/PLAT_HZ_CONVERT_TO_MHZ;
+	return mpu_periph_clk;
+}
+
+/* Return mpu_periph_clk tick */
+unsigned int plat_get_syscnt_freq2(void)
+{
+	return PLAT_SYS_COUNTER_FREQ_IN_TICKS;
 }

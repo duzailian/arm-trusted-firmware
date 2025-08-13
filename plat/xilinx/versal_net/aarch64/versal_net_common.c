@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2021-2022, Arm Limited and Contributors. All rights reserved.
  * Copyright (c) 2018-2022, Xilinx, Inc. All rights reserved.
- * Copyright (c) 2022, Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2022-2023, Advanced Micro Devices, Inc. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -12,6 +12,7 @@
 #include <lib/mmio.h>
 #include <lib/xlat_tables/xlat_tables_v2.h>
 #include <plat/common/platform.h>
+#include <plat_common.h>
 #include <plat_ipi.h>
 
 #include <plat_private.h>
@@ -33,7 +34,7 @@ const mmap_region_t plat_versal_net_mmap[] = {
 	{ 0 }
 };
 
-const mmap_region_t *plat_versal_net_get_mmap(void)
+const mmap_region_t *plat_get_mmap(void)
 {
 	return plat_versal_net_mmap;
 }
@@ -41,29 +42,37 @@ const mmap_region_t *plat_versal_net_get_mmap(void)
 /* For saving cpu clock for certain platform */
 uint32_t cpu_clock;
 
-char *board_name_decode(void)
+const char *board_name_decode(void)
 {
+	const char *platform;
+
 	switch (platform_id) {
 	case VERSAL_NET_SPP:
-		return "IPP";
+		platform = "IPP";
+		break;
 	case VERSAL_NET_EMU:
-		return "EMU";
+		platform = "EMU";
+		break;
 	case VERSAL_NET_SILICON:
-		return "Silicon";
+		platform = "Silicon";
+		break;
 	case VERSAL_NET_QEMU:
-		return "QEMU";
+		platform = "QEMU";
+		break;
 	default:
-		return "Unknown";
+		platform = "Unknown";
 	}
+
+	return platform;
 }
 
 void board_detection(void)
 {
-	uint32_t version;
+	uint32_t version_type;
 
-	version = mmio_read_32(PMC_TAP_VERSION);
-	platform_id = FIELD_GET(PLATFORM_MASK, version);
-	platform_version = FIELD_GET(PLATFORM_VERSION_MASK, version);
+	version_type = mmio_read_32(PMC_TAP_VERSION);
+	platform_id = FIELD_GET(PLATFORM_MASK, version_type);
+	platform_version = FIELD_GET(PLATFORM_VERSION_MASK, version_type);
 
 	if (platform_id == VERSAL_NET_QEMU_COSIM) {
 		platform_id = VERSAL_NET_QEMU;
@@ -87,13 +96,47 @@ void board_detection(void)
 	      platform_version / 10U, platform_version % 10U);
 }
 
+uint32_t get_uart_clk(void)
+{
+	uint32_t uart_clock;
+
+	switch (platform_id) {
+	case VERSAL_NET_SPP:
+		uart_clock = 1000000;
+		break;
+	case VERSAL_NET_EMU:
+		uart_clock = 25000000;
+		break;
+	case VERSAL_NET_QEMU:
+		uart_clock = 25000000;
+		break;
+	case VERSAL_NET_SILICON:
+		uart_clock = 100000000;
+		break;
+	default:
+		panic();
+	}
+
+	return uart_clock;
+}
+
 void versal_net_config_setup(void)
+{
+	generic_delay_timer_init();
+
+#if (TFA_NO_PM == 0)
+	/* Configure IPI data for versal_net */
+	versal_net_ipi_config_table_init();
+#endif
+}
+
+void syscnt_freq_config_setup(void)
 {
 	uint32_t val;
 	uintptr_t crl_base, iou_scntrs_base, psx_base;
 
 	crl_base = VERSAL_NET_CRL;
-	iou_scntrs_base = VERSAL_NET_IOU_SCNTRS;
+	iou_scntrs_base = IOU_SCNTRS_BASE;
 	psx_base = PSX_CRF;
 
 	/* Reset for system timestamp generator in FPX */
@@ -108,20 +151,9 @@ void versal_net_config_setup(void)
 	mmio_write_32(crl_base + VERSAL_NET_CRL_RST_TIMESTAMP_OFFSET, 0);
 
 	/* Program freq register in System counter and enable system counter. */
-	mmio_write_32(iou_scntrs_base + VERSAL_NET_IOU_SCNTRS_BASE_FREQ_OFFSET,
+	mmio_write_32(iou_scntrs_base + IOU_SCNTRS_BASE_FREQ_OFFSET,
 		      cpu_clock);
-	mmio_write_32(iou_scntrs_base + VERSAL_NET_IOU_SCNTRS_COUNTER_CONTROL_REG_OFFSET,
-		      VERSAL_NET_IOU_SCNTRS_CONTROL_EN);
-
-	generic_delay_timer_init();
-
-#if (TFA_NO_PM == 0)
-	/* Configure IPI data for versal_net */
-	versal_net_ipi_config_table_init();
-#endif
+	mmio_write_32(iou_scntrs_base + IOU_SCNTRS_COUNTER_CONTROL_REG_OFFSET,
+		      IOU_SCNTRS_CONTROL_EN);
 }
 
-uint32_t plat_get_syscnt_freq2(void)
-{
-	return cpu_clock;
-}

@@ -449,17 +449,20 @@ Generally, prefer code written in C over assembly. Assembly code is less
 portable, harder to understand, maintain and audit security wise. Also, static
 analysis tools generally don't analyze assembly code.
 
-There are, however, legitimate uses of assembly language. These include:
+If specific system-level instructions must be used (like cache maintenance
+operations), please consider using inline assembly. The ``arch_helpers.h`` files
+already define inline functions for a lot of these.
 
-  - Early boot code executed before the C runtime environment is setup.
+There are, however, legitimate uses of assembly language. These are usually
+early boot (eg. cpu reset sequences) and exception handling code before the C
+runtime environment is set up.
 
-  - Exception handling code.
-
-  - Low-level code where the exact sequence of instructions executed on the CPU
-    matters, such as CPU reset sequences.
-
-  - Low-level code where specific system-level instructions must be used, such
-    as cache maintenance operations.
+When writing assembly please note that a wide variety of common instruction
+sequences have helper macros in ``asm_macros.S`` which are preferred over
+writing them directly. This is especially important for debugging purposes as
+debug symbols must manually be included. Please use the ``func_prologue`` and
+``func_epilogue`` macros if you need to use the stack. Also, obeying the
+Procedure Call Standard (PCS) is generally recommended.
 
 Do not use weak functions
 -------------------------
@@ -517,5 +520,3 @@ comply with.
 .. _`Procedure Call Standard for the Arm 64-bit Architecture`: https://github.com/ARM-software/abi-aa/blob/main/aapcs64/aapcs64.rst
 .. _`EditorConfig`: http://editorconfig.org/
 .. _`Why the “volatile” type class should not be used`: https://www.kernel.org/doc/html/latest/process/volatile-considered-harmful.html
-.. _`MISRA C:2012 Guidelines`: https://www.misra.org.uk/Activities/MISRAC/tabid/160/Default.aspx
-.. _`a spreadsheet`: https://developer.trustedfirmware.org/file/download/lamajxif3w7c4mpjeoo5/PHID-FILE-fp7c7acszn6vliqomyhn/MISRA-and-TF-Analysis-v1.3.ods

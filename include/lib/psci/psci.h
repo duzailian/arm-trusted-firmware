@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2019, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2013-2025, Arm Limited and Contributors. All rights reserved.
  * Copyright (c) 2023, NVIDIA Corporation. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
@@ -302,7 +302,7 @@ typedef struct psci_cpu_data {
 
 	/*
 	 * Highest power level which takes part in a power management
-	 * operation.
+	 * operation. May be lower while the core is in suspend state.
 	 */
 	unsigned int target_pwrlvl;
 
@@ -319,22 +319,22 @@ typedef struct plat_psci_ops {
 	int (*pwr_domain_on)(u_register_t mpidr);
 	void (*pwr_domain_off)(const psci_power_state_t *target_state);
 	int (*pwr_domain_off_early)(const psci_power_state_t *target_state);
+#if PSCI_OS_INIT_MODE
+	int (*pwr_domain_validate_suspend)(
+				const psci_power_state_t *target_state);
+#endif
 	void (*pwr_domain_suspend_pwrdown_early)(
 				const psci_power_state_t *target_state);
-#if PSCI_OS_INIT_MODE
-	int (*pwr_domain_suspend)(const psci_power_state_t *target_state);
-#else
 	void (*pwr_domain_suspend)(const psci_power_state_t *target_state);
-#endif
 	void (*pwr_domain_on_finish)(const psci_power_state_t *target_state);
 	void (*pwr_domain_on_finish_late)(
 				const psci_power_state_t *target_state);
 	void (*pwr_domain_suspend_finish)(
 				const psci_power_state_t *target_state);
-	void __dead2 (*pwr_domain_pwr_down_wfi)(
+	void (*pwr_domain_pwr_down)(
 				const psci_power_state_t *target_state);
-	void __dead2 (*system_off)(void);
-	void __dead2 (*system_reset)(void);
+	void (*system_off)(void);
+	void (*system_reset)(void);
 	int (*validate_power_state)(unsigned int power_state,
 				    psci_power_state_t *req_state);
 	int (*validate_ns_entrypoint)(uintptr_t ns_entrypoint);
@@ -376,7 +376,6 @@ int psci_features(unsigned int psci_fid);
 #if PSCI_OS_INIT_MODE
 int psci_set_suspend_mode(unsigned int mode);
 #endif
-void __dead2 psci_power_down_wfi(void);
 void psci_arch_setup(void);
 
 #endif /*__ASSEMBLER__*/

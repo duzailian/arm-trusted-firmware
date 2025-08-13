@@ -1,8 +1,10 @@
 /*
- * Copyright (c) 2015-2022, Arm Limited and Contributors. All rights reserved.
+ * Copyright (c) 2015-2024, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
+
+#define _POSIX_C_SOURCE 200809L
 
 #include <assert.h>
 #include <ctype.h>
@@ -66,27 +68,17 @@ static int new_keys;
 static int save_keys;
 static int print_cert;
 
-/* Info messages created in the Makefile */
-extern const char build_msg[];
-extern const char platform_msg[];
-
-
-static char *strdup(const char *str)
-{
-	int n = strlen(str) + 1;
-	char *dup = malloc(n);
-	if (dup) {
-		strcpy(dup, str);
-	}
-	return dup;
-}
+static const char build_msg[] = "Built : " __TIME__ ", " __DATE__;
+static const char platform_msg[] = PLAT_MSG;
 
 static const char *key_algs_str[] = {
 	[KEY_ALG_RSA] = "rsa",
 #ifndef OPENSSL_NO_EC
 	[KEY_ALG_ECDSA_NIST] = "ecdsa",
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
 	[KEY_ALG_ECDSA_BRAINPOOL_R] = "ecdsa-brainpool-regular",
 	[KEY_ALG_ECDSA_BRAINPOOL_T] = "ecdsa-brainpool-twisted",
+#endif
 #endif /* OPENSSL_NO_EC */
 };
 
@@ -178,7 +170,7 @@ static void check_cmd_params(void)
 {
 	cert_t *cert;
 	ext_t *ext;
-	key_t *key;
+	cert_key_t *key;
 	int i, j;
 	bool valid_size;
 
@@ -269,8 +261,12 @@ static const cmd_opt_t common_cmd_opt[] = {
 	},
 	{
 		{ "key-alg", required_argument, NULL, 'a' },
-		"Key algorithm: 'rsa' (default)- RSAPSS scheme as per PKCS#1 v2.1, " \
+		"Key algorithm: 'rsa' (default)- RSAPSS scheme as per PKCS#1 v2.1, "
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
 		"'ecdsa', 'ecdsa-brainpool-regular', 'ecdsa-brainpool-twisted'"
+#else
+		"'ecdsa'"
+#endif
 	},
 	{
 		{ "key-size", required_argument, NULL, 'b' },
@@ -299,7 +295,7 @@ int main(int argc, char *argv[])
 	STACK_OF(X509_EXTENSION) * sk;
 	X509_EXTENSION *cert_ext = NULL;
 	ext_t *ext;
-	key_t *key;
+	cert_key_t *key;
 	cert_t *cert;
 	FILE *file;
 	int i, j, ext_nid, nvctr;
@@ -441,7 +437,8 @@ int main(int argc, char *argv[])
 #endif
 
 		/* First try to load the key from disk */
-		if (key_load(&keys[i], &err_code)) {
+		err_code = key_load(&keys[i]);
+		if (err_code == KEY_ERR_NONE) {
 			/* Key loaded successfully */
 			continue;
 		}

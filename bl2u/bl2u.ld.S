@@ -18,6 +18,8 @@ MEMORY {
 }
 
 SECTIONS {
+    RAM_REGION_START = ORIGIN(RAM);
+    RAM_REGION_LENGTH = LENGTH(RAM);
     . = BL2U_BASE;
 
     ASSERT(. == ALIGN(PAGE_SIZE),
@@ -25,11 +27,15 @@ SECTIONS {
 
 #if SEPARATE_CODE_AND_RODATA
     .text . : {
+        ASSERT(. == ALIGN(PAGE_SIZE),
+        ".text address is not aligned on a page boundary.");
+
         __TEXT_START__ = .;
 
         *bl2u_entrypoint.o(.text*)
         *(SORT_BY_ALIGNMENT(.text*))
         *(.vectors)
+        __TEXT_END_UNALIGNED__ = .;
 
         . = ALIGN(PAGE_SIZE);
 
@@ -51,11 +57,15 @@ SECTIONS {
 
         RODATA_COMMON
 
+        __RODATA_END_UNALIGNED__ = .;
         . = ALIGN(PAGE_SIZE);
         __RODATA_END__ = .;
     } >RAM
 #else /* SEPARATE_CODE_AND_RODATA */
     .ro . : {
+        ASSERT(. == ALIGN(PAGE_SIZE),
+        ".ro address is not aligned on a page boundary.");
+
         __RO_START__ = .;
 
         *bl2u_entrypoint.o(.text*)
@@ -115,4 +125,5 @@ SECTIONS {
     __BSS_SIZE__ = SIZEOF(.bss);
 
     ASSERT(. <= BL2U_LIMIT, "BL2U image has exceeded its limit.")
+    RAM_REGION_END = .;
 }

@@ -31,7 +31,12 @@ MEMORY {
 #endif /* !BL2_IN_XIP_MEM */
 
 SECTIONS {
+    RAM_REGION_START = ORIGIN(RAM);
+    RAM_REGION_LENGTH = LENGTH(RAM);
 #if BL2_IN_XIP_MEM
+    ROM_REGION_START = ORIGIN(ROM);
+    ROM_REGION_LENGTH = LENGTH(ROM);
+
     . = BL2_RO_BASE;
 
     ASSERT(. == ALIGN(PAGE_SIZE),
@@ -43,8 +48,16 @@ SECTIONS {
         "BL2_BASE address is not aligned on a page boundary.")
 #endif /* BL2_IN_XIP_MEM */
 
+#if SEPARATE_BL2_NOLOAD_REGION
+    RAM_NOLOAD_REGION_START = ORIGIN(RAM_NOLOAD);
+    RAM_NOLOAD_REGION_LENGTH = LENGTH(RAM_NOLOAD);
+#endif
+
 #if SEPARATE_CODE_AND_RODATA
     .text . : {
+        ASSERT(. == ALIGN(PAGE_SIZE),
+        ".text address is not aligned on a page boundary.");
+
         __TEXT_START__ = .;
         __TEXT_RESIDENT_START__ = .;
 
@@ -55,6 +68,7 @@ SECTIONS {
 
         *(SORT_BY_ALIGNMENT(.text*))
         *(.vectors)
+        __TEXT_END_UNALIGNED__ = .;
 
         . = ALIGN(PAGE_SIZE);
 
@@ -68,6 +82,7 @@ SECTIONS {
 
         RODATA_COMMON
 
+        __RODATA_END_UNALIGNED__ = .;
         . = ALIGN(PAGE_SIZE);
 
         __RODATA_END__ = .;
@@ -77,6 +92,9 @@ SECTIONS {
         "Resident part of BL2 has exceeded its limit.")
 #else /* SEPARATE_CODE_AND_RODATA */
     .ro . : {
+        ASSERT(. == ALIGN(PAGE_SIZE),
+        ".ro address is not aligned on a page boundary.");
+
         __RO_START__ = .;
         __TEXT_RESIDENT_START__ = .;
 
@@ -109,6 +127,7 @@ SECTIONS {
         "cpu_ops not defined for this platform.")
 
 #if BL2_IN_XIP_MEM
+    ROM_REGION_END = .;
     . = BL2_RW_BASE;
 
     ASSERT(BL2_RW_BASE == ALIGN(PAGE_SIZE),
@@ -138,6 +157,7 @@ SECTIONS {
 
 #if SEPARATE_BL2_NOLOAD_REGION
     __BL2_NOLOAD_END__ = .;
+    RAM_NOLOAD_REGION_END = .;
 
     . = SAVED_ADDR;
 #endif /* SEPARATE_BL2_NOLOAD_REGION */
@@ -198,6 +218,7 @@ SECTIONS {
         __COHERENT_RAM_END_UNALIGNED__ - __COHERENT_RAM_START__;
 #endif /* USE_COHERENT_MEM */
 
+    RAM_REGION_END = .;
 #if BL2_IN_XIP_MEM
     ASSERT(. <= BL2_RW_LIMIT, "BL2's RW content has exceeded its limit.")
 #else /* BL2_IN_XIP_MEM */

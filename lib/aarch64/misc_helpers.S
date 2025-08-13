@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2023, Arm Limited and Contributors. All rights reserved.
+ * Copyright (c) 2013-2024, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -15,17 +15,12 @@
 	.globl	zero_normalmem
 	.globl	zeromem
 	.globl	memcpy16
-	.globl	gpt_tlbi_by_pa_ll
 
 	.globl	disable_mmu_el1
 	.globl	disable_mmu_el3
 	.globl	disable_mmu_icache_el1
 	.globl	disable_mmu_icache_el3
 	.globl	fixup_gdt_reloc
-#if SUPPORT_VFP
-	.globl	enable_vfp
-#endif
-
 func smc
 	smc	#0
 endfunc smc
@@ -457,24 +452,6 @@ func disable_mmu_icache_el1
 endfunc disable_mmu_icache_el1
 
 /* ---------------------------------------------------------------------------
- * Enable the use of VFP at EL3
- * ---------------------------------------------------------------------------
- */
-#if SUPPORT_VFP
-func enable_vfp
-	mrs	x0, cpacr_el1
-	orr	x0, x0, #CPACR_VFP_BITS
-	msr	cpacr_el1, x0
-	mrs	x0, cptr_el3
-	mov	x1, #AARCH64_CPTR_TFP
-	bic	x0, x0, x1
-	msr	cptr_el3, x0
-	isb
-	ret
-endfunc enable_vfp
-#endif
-
-/* ---------------------------------------------------------------------------
  * Helper to fixup Global Descriptor table (GDT) and dynamic relocations
  * (.rela.dyn) at runtime.
  *
@@ -595,20 +572,3 @@ func fixup_gdt_reloc
 	b.lo	1b
 	ret
 endfunc fixup_gdt_reloc
-
-/*
- * TODO: Currently only supports size of 4KB,
- * support other sizes as well.
- */
-func gpt_tlbi_by_pa_ll
-#if ENABLE_ASSERTIONS
-	cmp	x1, #PAGE_SIZE_4KB
-	ASM_ASSERT(eq)
-	tst	x0, #(PAGE_SIZE_MASK)
-	ASM_ASSERT(eq)
-#endif
-	lsr	x0, x0, #FOUR_KB_SHIFT	/* 4KB size encoding is zero */
-	sys	#6, c8, c4, #7, x0 	/* TLBI RPALOS, <Xt> */
-	dsb	sy
-	ret
-endfunc gpt_tlbi_by_pa_ll

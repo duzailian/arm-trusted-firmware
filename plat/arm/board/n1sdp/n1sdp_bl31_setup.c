@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2023, Arm Limited. All rights reserved.
+ * Copyright (c) 2018-2024, Arm Limited. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -16,6 +16,8 @@
 #include "n1sdp_def.h"
 #include "n1sdp_private.h"
 #include <platform_def.h>
+
+#define RT_OWNER 0
 
 /*
  * Platform information structure stored in SDS.
@@ -44,16 +46,20 @@ static scmi_channel_plat_info_t n1sdp_scmi_plat_info = {
 };
 
 static struct gic600_multichip_data n1sdp_multichip_data __init = {
-	.rt_owner_base = PLAT_ARM_GICD_BASE,
-	.rt_owner = 0,
+	.base_addrs = {
+		PLAT_ARM_GICD_BASE
+	},
+	.rt_owner = RT_OWNER,
 	.chip_count = 1,
 	.chip_addrs = {
-		PLAT_ARM_GICD_BASE >> 16,
-		PLAT_ARM_GICD_BASE >> 16
+		[RT_OWNER] = {
+			PLAT_ARM_GICD_BASE >> 16,
+			PLAT_ARM_GICD_BASE >> 16
+		}
 	},
 	.spi_ids = {
-		{PLAT_ARM_GICD_BASE, 32, 479},
-		{PLAT_ARM_GICD_BASE, 512, 959}
+		{PLAT_ARM_GICD_BASE, 32, 511},
+		{PLAT_ARM_GICD_BASE, 512, 991}
 	}
 };
 
@@ -127,13 +133,14 @@ void bl31_platform_setup(void)
 	int ret;
 	struct n1sdp_plat_info plat_info;
 
-	ret = sds_init();
+	ret = sds_init(SDS_SCP_AP_REGION_ID);
 	if (ret != SDS_OK) {
 		ERROR("SDS initialization failed\n");
 		panic();
 	}
 
-	ret = sds_struct_read(N1SDP_SDS_PLATFORM_INFO_STRUCT_ID,
+	ret = sds_struct_read(SDS_SCP_AP_REGION_ID,
+				N1SDP_SDS_PLATFORM_INFO_STRUCT_ID,
 				N1SDP_SDS_PLATFORM_INFO_OFFSET,
 				&plat_info,
 				N1SDP_SDS_PLATFORM_INFO_SIZE,

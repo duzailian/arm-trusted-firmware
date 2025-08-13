@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2023, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2015-2024, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -54,6 +54,12 @@
 #define BOOT_ITF_SHIFT			12
 #define BOOT_INST_MASK			GENMASK_32(11, 8)
 #define BOOT_INST_SHIFT			8
+
+/* Layout for fwu update information. */
+#define FWU_INFO_IDX_MSK		GENMASK(3, 0)
+#define FWU_INFO_IDX_OFF		U(0)
+#define FWU_INFO_CNT_MSK		GENMASK(7, 4)
+#define FWU_INFO_CNT_OFF		U(4)
 
 static console_t console;
 
@@ -113,7 +119,11 @@ bool stm32mp_lock_available(void)
 	const uint32_t c_m_bits = SCTLR_M_BIT | SCTLR_C_BIT;
 
 	/* The spinlocks are used only when MMU and data cache are enabled */
+#ifdef __aarch64__
+	return (read_sctlr_el3() & c_m_bits) == c_m_bits;
+#else
 	return (read_sctlr() & c_m_bits) == c_m_bits;
+#endif
 }
 
 int stm32mp_map_ddr_non_cacheable(void)
@@ -164,9 +174,9 @@ int stm32_get_otp_value_from_idx(const uint32_t otp_idx, uint32_t *otp_val)
 	assert(otp_val != NULL);
 
 #if defined(IMAGE_BL2)
-	ret = bsec_shadow_read_otp(otp_val, otp_idx);
-#elif defined(IMAGE_BL32)
-	ret = bsec_read_otp(otp_val, otp_idx);
+	ret = stm32_otp_shadow_read(otp_val, otp_idx);
+#elif defined(IMAGE_BL31) || defined(IMAGE_BL32)
+	ret = stm32_otp_read(otp_val, otp_idx);
 #else
 #error "Not supported"
 #endif
@@ -265,8 +275,8 @@ int stm32mp_uart_console_setup(void)
 	return 0;
 }
 
-#if STM32MP_EARLY_CONSOLE
-void stm32mp_setup_early_console(void)
+#if EARLY_CONSOLE
+void plat_setup_early_console(void)
 {
 #if defined(IMAGE_BL2) || STM32MP_RECONFIGURE_CONSOLE
 	plat_crash_console_init();
@@ -274,7 +284,7 @@ void stm32mp_setup_early_console(void)
 	set_console(STM32MP_DEBUG_USART_BASE, STM32MP_DEBUG_USART_CLK_FRQ);
 	NOTICE("Early console setup\n");
 }
-#endif /* STM32MP_EARLY_CONSOLE */
+#endif /* EARLY_CONSOLE */
 
 /*****************************************************************************
  * plat_is_smccc_feature_available() - This function checks whether SMCCC
@@ -374,3 +384,53 @@ void stm32_get_boot_interface(uint32_t *interface, uint32_t *instance)
 	*interface = (itf & BOOT_ITF_MASK) >> BOOT_ITF_SHIFT;
 	*instance = (itf & BOOT_INST_MASK) >> BOOT_INST_SHIFT;
 }
+
+#if PSA_FWU_SUPPORT
+void stm32_fwu_set_boot_idx(void)
+{
+	clk_enable(TAMP_BKP_REG_CLK);
+	mmio_clrsetbits_32(stm32_get_bkpr_fwu_info_addr(),
+			   FWU_INFO_IDX_MSK,
+			   (plat_fwu_get_boot_idx() << FWU_INFO_IDX_OFF) &
+			   FWU_INFO_IDX_MSK);
+	clk_disable(TAMP_BKP_REG_CLK);
+}
+
+uint32_t stm32_get_and_dec_fwu_trial_boot_cnt(void)
+{
+	uintptr_t bkpr_fwu_cnt = stm32_get_bkpr_fwu_info_addr();
+	uint32_t try_cnt;
+
+	clk_enable(TAMP_BKP_REG_CLK);
+	try_cnt = (mmio_read_32(bkpr_fwu_cnt) & FWU_INFO_CNT_MSK) >> FWU_INFO_CNT_OFF;
+
+	assert(try_cnt <= FWU_MAX_TRIAL_REBOOT);
+
+	if (try_cnt != 0U) {
+		mmio_clrsetbits_32(bkpr_fwu_cnt, FWU_INFO_CNT_MSK,
+				   (try_cnt - 1U) << FWU_INFO_CNT_OFF);
+	}
+	clk_disable(TAMP_BKP_REG_CLK);
+
+	return try_cnt;
+}
+
+void stm32_set_max_fwu_trial_boot_cnt(void)
+{
+	uintptr_t bkpr_fwu_cnt = stm32_get_bkpr_fwu_info_addr();
+
+	clk_enable(TAMP_BKP_REG_CLK);
+	mmio_clrsetbits_32(bkpr_fwu_cnt, FWU_INFO_CNT_MSK,
+			   (FWU_MAX_TRIAL_REBOOT << FWU_INFO_CNT_OFF) & FWU_INFO_CNT_MSK);
+	clk_disable(TAMP_BKP_REG_CLK);
+}
+
+void stm32_clear_fwu_trial_boot_cnt(void)
+{
+	uintptr_t bkpr_fwu_cnt = stm32_get_bkpr_fwu_info_addr();
+
+	clk_enable(TAMP_BKP_REG_CLK);
+	mmio_clrbits_32(bkpr_fwu_cnt, FWU_INFO_CNT_MSK);
+	clk_disable(TAMP_BKP_REG_CLK);
+}
+#endif /* PSA_FWU_SUPPORT */

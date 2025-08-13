@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Arm Limited. All rights reserved.
+ * Copyright (c) 2022-2024, Arm Limited. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  *
@@ -10,9 +10,11 @@
 
 #include <stdint.h>
 
+#include <drivers/measured_boot/metadata.h>
+
 /* Measured boot message types that distinguish its services */
-#define RSS_MEASURED_BOOT_READ		1001U
-#define RSS_MEASURED_BOOT_EXTEND	1002U
+#define RSE_MEASURED_BOOT_READ		1001U
+#define RSE_MEASURED_BOOT_EXTEND	1002U
 
 struct measured_boot_read_iovec_in_t {
     uint8_t index;

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2015-2023, Arm Limited. All rights reserved.
+# Copyright (c) 2015-2024, Arm Limited. All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 #
@@ -19,11 +19,15 @@ MBEDTLS_MAJOR=$(shell grep -hP "define MBEDTLS_VERSION_MAJOR" ${MBEDTLS_DIR}/inc
 MBEDTLS_MINOR=$(shell grep -hP "define MBEDTLS_VERSION_MINOR" ${MBEDTLS_DIR}/include/mbedtls/*.h | grep -oe '\([0-9.]*\)')
 $(info MBEDTLS_VERSION_MAJOR is [${MBEDTLS_MAJOR}] MBEDTLS_VERSION_MINOR is [${MBEDTLS_MINOR}])
 
+ifneq (${MBEDTLS_MAJOR}, 3)
+  $(error Error: TF-A only supports MbedTLS versions > 3.x)
+endif
+
 # Specify mbed TLS configuration file
-ifeq (${MBEDTLS_MAJOR}, 2)
-	MBEDTLS_CONFIG_FILE	?=	"<drivers/auth/mbedtls/mbedtls_config-2.h>"
-else ifeq (${MBEDTLS_MAJOR}, 3)
-	MBEDTLS_CONFIG_FILE	?=	"<drivers/auth/mbedtls/mbedtls_config-3.h>"
+ifeq (${PSA_CRYPTO},1)
+  MBEDTLS_CONFIG_FILE    ?=    "<drivers/auth/mbedtls/default_psa_mbedtls_config.h>"
+else
+  MBEDTLS_CONFIG_FILE    ?=    "<drivers/auth/mbedtls/default_mbedtls_config.h>"
 endif
 
 $(eval $(call add_define,MBEDTLS_CONFIG_FILE))
@@ -42,9 +46,11 @@ LIBMBEDTLS_SRCS		+= $(addprefix ${MBEDTLS_DIR}/library/,		\
 					platform.c 			\
 					platform_util.c			\
 					bignum.c			\
+					bignum_core.c			\
 					gcm.c 				\
 					md.c				\
 					pk.c 				\
+					pk_ecc.c 			\
 					pk_wrap.c 			\
 					pkparse.c 			\
 					pkwrite.c 			\
@@ -54,27 +60,23 @@ LIBMBEDTLS_SRCS		+= $(addprefix ${MBEDTLS_DIR}/library/,		\
 					ecp_curves.c			\
 					ecp.c				\
 					rsa.c				\
+					rsa_alt_helpers.c		\
 					x509.c 				\
 					x509_crt.c 			\
 					)
 
-ifeq (${MBEDTLS_MAJOR}, 2)
-	LIBMBEDTLS_SRCS +=  $(addprefix ${MBEDTLS_DIR}/library/,	\
-						rsa_internal.c		\
-						)
-else ifeq (${MBEDTLS_MAJOR}, 3)
-	LIBMBEDTLS_SRCS +=  $(addprefix ${MBEDTLS_DIR}/library/,	\
-						bignum_core.c		\
-						rsa_alt_helpers.c	\
-						hash_info.c		\
-						)
-
-	# Currently on Mbedtls-3 there is outstanding bug due to usage
-	# of redundant declaration[1], So disable redundant-decls
-	# compilation flag to avoid compilation error when compiling with
-	# Mbedtls-3.
-	# [1]: https://github.com/Mbed-TLS/mbedtls/issues/6910
-	LIBMBEDTLS_CFLAGS += -Wno-error=redundant-decls
+ifeq (${PSA_CRYPTO},1)
+LIBMBEDTLS_SRCS         += $(addprefix ${MBEDTLS_DIR}/library/,    	\
+					psa_crypto.c                   	\
+					psa_crypto_client.c            	\
+					psa_crypto_hash.c              	\
+					psa_crypto_rsa.c               	\
+					psa_crypto_ecp.c               	\
+					psa_crypto_slot_management.c   	\
+					psa_crypto_aead.c               \
+					psa_crypto_cipher.c             \
+					psa_util.c			\
+					)
 endif
 
 # The platform may define the variable 'TF_MBEDTLS_KEY_ALG' to select the key
@@ -91,11 +93,21 @@ endif
 
 ifeq (${TF_MBEDTLS_KEY_SIZE},)
     ifneq ($(findstring rsa,${TF_MBEDTLS_KEY_ALG}),)
-	ifeq (${KEY_SIZE},)
+        ifeq (${KEY_SIZE},)
             TF_MBEDTLS_KEY_SIZE		:=	2048
-	else
+        else ifneq ($(filter $(KEY_SIZE), 1024 2048 3072 4096),)
             TF_MBEDTLS_KEY_SIZE		:=	${KEY_SIZE}
-	endif
+        else
+            $(error "Invalid value for KEY_SIZE: ${KEY_SIZE}")
+        endif
+    else ifneq ($(findstring ecdsa,${TF_MBEDTLS_KEY_ALG}),)
+        ifeq (${KEY_SIZE},)
+            TF_MBEDTLS_KEY_SIZE		:=	256
+        else ifneq ($(filter $(KEY_SIZE), 256 384),)
+            TF_MBEDTLS_KEY_SIZE		:=	${KEY_SIZE}
+        else
+            $(error "Invalid value for KEY_SIZE: ${KEY_SIZE}")
+        endif
     endif
 endif
 
@@ -105,6 +117,14 @@ else ifeq (${HASH_ALG}, sha512)
     TF_MBEDTLS_HASH_ALG_ID	:=	TF_MBEDTLS_SHA512
 else
     TF_MBEDTLS_HASH_ALG_ID	:=	TF_MBEDTLS_SHA256
+endif
+
+ifeq (${MBOOT_EL_HASH_ALG}, sha256)
+    $(eval $(call add_define,TF_MBEDTLS_MBOOT_USE_SHA256))
+else ifeq (${MBOOT_EL_HASH_ALG}, sha384)
+    $(eval $(call add_define,TF_MBEDTLS_MBOOT_USE_SHA384))
+else ifeq (${MBOOT_EL_HASH_ALG}, sha512)
+    $(eval $(call add_define,TF_MBEDTLS_MBOOT_USE_SHA512))
 endif
 
 ifeq (${TF_MBEDTLS_KEY_ALG},ecdsa)

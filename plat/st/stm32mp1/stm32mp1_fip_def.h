@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2022, STMicroelectronics - All Rights Reserved
+ * Copyright (C) 2021-2024, STMicroelectronics - All Rights Reserved
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -7,13 +7,7 @@
 #ifndef STM32MP1_FIP_DEF_H
 #define STM32MP1_FIP_DEF_H
 
-#if STM32MP15_OPTEE_RSV_SHM
-#define STM32MP_DDR_S_SIZE		U(0x01E00000)	/* 30 MB */
-#define STM32MP_DDR_SHMEM_SIZE		U(0x00200000)	/* 2 MB */
-#else
 #define STM32MP_DDR_S_SIZE		U(0x02000000)	/* 32 MB */
-#define STM32MP_DDR_SHMEM_SIZE		U(0)		/* empty */
-#endif
 
 #if TRUSTED_BOARD_BOOT && !STM32MP_USE_EXTERNAL_HEAP
 #if STM32MP15
@@ -122,17 +116,6 @@
  */
 #if defined(IMAGE_BL32)
 #define MAX_MMAP_REGIONS		10
-#endif
-
-/*******************************************************************************
- * STM32MP1 RAW partition offset for devices without GPT
- ******************************************************************************/
-#define STM32MP_EMMC_BOOT_FIP_OFFSET	U(0x00040000)
-#ifndef STM32MP_NOR_FIP_OFFSET
-#define STM32MP_NOR_FIP_OFFSET		U(0x00080000)
-#endif
-#ifndef STM32MP_NAND_FIP_OFFSET
-#define STM32MP_NAND_FIP_OFFSET		U(0x00200000)
 #endif
 
 #endif /* STM32MP1_FIP_DEF_H */

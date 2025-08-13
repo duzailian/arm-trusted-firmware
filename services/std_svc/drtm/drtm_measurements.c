@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Arm Limited. All rights reserved.
+ * Copyright (c) 2022-2025 Arm Limited. All rights reserved.
  *
  * SPDX-License-Identifier:    BSD-3-Clause
  *
@@ -56,7 +56,10 @@ static int drtm_event_log_measure_and_record(uintptr_t data_base,
 	}
 
 	/* Record the mesasurement in the EventLog buffer */
-	event_log_record(hash_data, event_type, &metadata);
+	rc = event_log_record(hash_data, event_type, &metadata);
+	if (rc != 0) {
+		return rc;
+	}
 
 	return 0;
 }
@@ -135,7 +138,8 @@ enum drtm_retc drtm_take_measurements(const struct_drtm_dl_args *a)
 	/* PCR-17: End of DCE measurements. */
 	rc = drtm_event_log_measure_and_record((uintptr_t)drtm_event_arm_sep_data,
 					       strlen(drtm_event_arm_sep_data),
-					       DRTM_EVENT_ARM_SEPARATOR, NULL,
+					       DRTM_EVENT_ARM_SEPARATOR,
+					       drtm_event_arm_sep_data,
 					       PCR_17);
 	CHECK_RC(rc, drtm_event_log_measure_and_record(DRTM_EVENT_ARM_SEPARATOR));
 
@@ -185,7 +189,7 @@ enum drtm_retc drtm_take_measurements(const struct_drtm_dl_args *a)
 
 	/* PCR-18: Measure the DLME image entry point. */
 	dlme_img_ep = DL_ARGS_GET_DLME_ENTRY_POINT(a);
-	drtm_event_log_measure_and_record((uintptr_t)&dlme_img_ep,
+	drtm_event_log_measure_and_record((uintptr_t)&(a->dlme_img_ep_off),
 					  sizeof(dlme_img_ep),
 					  DRTM_EVENT_ARM_DLME_EP, NULL,
 					  PCR_18);
@@ -194,10 +198,15 @@ enum drtm_retc drtm_take_measurements(const struct_drtm_dl_args *a)
 	/* PCR-18: End of DCE measurements. */
 	rc = drtm_event_log_measure_and_record((uintptr_t)drtm_event_arm_sep_data,
 					       strlen(drtm_event_arm_sep_data),
-					       DRTM_EVENT_ARM_SEPARATOR, NULL,
+					       DRTM_EVENT_ARM_SEPARATOR,
+					       drtm_event_arm_sep_data,
 					       PCR_18);
 	CHECK_RC(rc,
 		 drtm_event_log_measure_and_record(DRTM_EVENT_ARM_SEPARATOR));
+
+	/* Measure no Action event but not extend it in PCR */
+	CHECK_RC(rc,
+		 drtm_event_log_measure_and_record(DRTM_EVENT_ARM_NO_ACTION));
 	/*
 	 * If the DCE is unable to log a measurement because there is no available
 	 * space in the event log region, the DCE must extend a hash of the value

@@ -7,7 +7,9 @@ Platform Ports
    :hidden:
 
    allwinner
+   amd-versal2
    arm/index
+   ast2700
    meson-axg
    meson-gxbb
    meson-gxl
@@ -20,12 +22,18 @@ Platform Ports
    mt8183
    mt8186
    mt8188
+   mt8189
    mt8192
    mt8195
+   mt8196
    nvidia-tegra
    warp7
    imx8
    imx8m
+   imx8ulp
+   imx9
+   s32g274a
+   npcm845x
    nxp/index
    poplar
    qemu
@@ -34,12 +42,13 @@ Platform Ports
    qti-msm8916
    rpi3
    rpi4
+   rpi5
    rcar-gen3
    rz-g2
    rockchip
    socionext-uniphier
    synquacer
-   stm32mp1
+   st/index
    ti-k3
    xilinx-versal-net
    xilinx-versal
@@ -55,9 +64,6 @@ documentation associated with them.
    currently have associated documentation:
 
    - Arm Neoverse N1 System Development Platform (N1SDP)
-   - Arm Neoverse Reference Design N1 Edge (RD-N1-Edge) FVP
-   - Arm Neoverse Reference Design E1 Edge (RD-E1-Edge) FVP
-   - Arm SGI-575
    - MediaTek MT8173 SoCs
 
 Deprecated platforms
@@ -66,19 +72,25 @@ Deprecated platforms
 +----------------+----------------+--------------------+--------------------+
 |    Platform    |     Vendor     | Deprecated version |  Deleted version   |
 +================+================+====================+====================+
-|    sgm775      |      Arm       |        2.5         |       2.7          |
+|      TC2       |      Arm       |        2.12        |         2.13       |
+|                |                |                    |                    |
 +----------------+----------------+--------------------+--------------------+
-|    mt6795      |      MTK       |        2.5         |       2.7          |
+|     fvp_r      |      Arm       |        2.13        |         2.13       |
+|                |                |                    |                    |
 +----------------+----------------+--------------------+--------------------+
-|    sgi575      |      Arm       |        2.8         |       3.0          |
+|    SGI-575     |      Arm       |        2.13        |         2.13       |
+|                |                |                    |                    |
 +----------------+----------------+--------------------+--------------------+
-|    rdn1edge    |      Arm       |        2.8         |       3.0          |
+|   RD-N1-Edge   |      Arm       |        2.13        |         2.13       |
+|                |                |                    |                    |
 +----------------+----------------+--------------------+--------------------+
-|    tc0         |      Arm       |        2.8         |       3.0          |
+|     RD-V1      |      Arm       |        2.13        |         2.13       |
+|                |                |                    |                    |
 +----------------+----------------+--------------------+--------------------+
-|    rde1edge    |      Arm       |        2.9         |       3.1          |
+|    RD-V1-MC    |      Arm       |        2.13        |         2.13       |
+|                |                |                    |                    |
 +----------------+----------------+--------------------+--------------------+
 
 --------------
 
-*Copyright (c) 2019-2023, Arm Limited. All rights reserved.*
+*Copyright (c) 2019-2025, Arm Limited. All rights reserved.*

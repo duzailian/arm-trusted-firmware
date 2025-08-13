@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2020, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2015-2023, Arm Limited and Contributors. All rights reserved.
  * Portions copyright (c) 2021-2022, ProvenRun S.A.S. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
@@ -220,9 +220,9 @@ unsigned int gicv2_get_pending_interrupt_id(void)
 	 * Find out which non-secure interrupt it is under the assumption that
 	 * the GICC_CTLR.AckCtl bit is 0.
 	 */
-	if (id == PENDING_G1_INTID)
+	if (id == PENDING_G1_INTID) {
 		id = gicc_read_ahppir(driver_data->gicc_base) & INT_ID_MASK;
-
+	}
 	return id;
 }
 
@@ -301,9 +301,9 @@ void gicv2_set_pe_target_mask(unsigned int proc_num)
 	assert(proc_num < driver_data->target_masks_num);
 
 	/* Return if the target mask is already populated */
-	if (driver_data->target_masks[proc_num] != 0U)
+	if (driver_data->target_masks[proc_num] != 0U) {
 		return;
-
+	}
 	/*
 	 * Update target register corresponding to this CPU and flush for it to
 	 * be visible to other CPUs.
@@ -390,7 +390,7 @@ void gicv2_set_interrupt_priority(unsigned int id, unsigned int priority)
  * This function assigns group for the interrupt identified by id. The group can
  * be any of GICV2_INTR_GROUP*
  ******************************************************************************/
-void gicv2_set_interrupt_type(unsigned int id, unsigned int type)
+void gicv2_set_interrupt_group(unsigned int id, unsigned int group)
 {
 	assert(driver_data != NULL);
 	assert(driver_data->gicd_base != 0U);
@@ -398,7 +398,7 @@ void gicv2_set_interrupt_type(unsigned int id, unsigned int type)
 
 	/* Serialize read-modify-write to Distributor registers */
 	spin_lock(&gic_lock);
-	switch (type) {
+	switch (group) {
 	case GICV2_INTR_GROUP1:
 		gicd_set_igroupr(driver_data->gicd_base, id);
 		break;

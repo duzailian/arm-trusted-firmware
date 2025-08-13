@@ -12,21 +12,26 @@
 #include <plat/arm/common/smccc_def.h>
 #include <plat/common/common_def.h>
 
-#define MAX_INTR_EL3			2
-/* This part is taken from U-Boot project under GPL that's why dual license above */
-#define __bf_shf(x) (__builtin_ffsll(x) - 1U)
-#define FIELD_GET(_mask, _reg)						\
-	({								\
-		(typeof(_mask))(((_reg) & (_mask)) >> __bf_shf(_mask));	\
-	})
+#define MAX_INTR_EL3			2U
 
 /* List all consoles */
+#define VERSAL_NET_CONSOLE_ID_none	U(0)
 #define VERSAL_NET_CONSOLE_ID_pl011	U(1)
 #define VERSAL_NET_CONSOLE_ID_pl011_0	U(1)
 #define VERSAL_NET_CONSOLE_ID_pl011_1	U(2)
 #define VERSAL_NET_CONSOLE_ID_dcc	U(3)
+#define VERSAL_NET_CONSOLE_ID_dtb	U(4)
 
-#define VERSAL_NET_CONSOLE_IS(con)	(VERSAL_NET_CONSOLE_ID_ ## con == VERSAL_NET_CONSOLE)
+#define CONSOLE_IS(con)	(VERSAL_NET_CONSOLE_ID_ ## con == VERSAL_NET_CONSOLE)
+
+/* Runtime console */
+#define RT_CONSOLE_ID_pl011    1
+#define RT_CONSOLE_ID_pl011_0  1
+#define RT_CONSOLE_ID_pl011_1  2
+#define RT_CONSOLE_ID_dcc      3
+#define RT_CONSOLE_ID_dtb      4
+
+#define RT_CONSOLE_IS(con)     (RT_CONSOLE_ID_ ## con == CONSOLE_RUNTIME)
 
 /* List all platforms */
 #define VERSAL_NET_SILICON		U(0)
@@ -117,11 +122,11 @@
 #define VERSAL_NET_CRL_APB_TIMESTAMP_REF_CTRL_CLKACT_BIT	(1U << 25U)
 
 /* IOU SCNTRS */
-#define VERSAL_NET_IOU_SCNTRS					U(0xEC920000)
-#define VERSAL_NET_IOU_SCNTRS_COUNTER_CONTROL_REG_OFFSET	U(0)
-#define VERSAL_NET_IOU_SCNTRS_BASE_FREQ_OFFSET			U(0x20)
+#define IOU_SCNTRS_BASE	U(0xEC920000)
+#define IOU_SCNTRS_COUNTER_CONTROL_REG_OFFSET	U(0)
+#define IOU_SCNTRS_BASE_FREQ_OFFSET	U(0x20)
 
-#define VERSAL_NET_IOU_SCNTRS_CONTROL_EN	U(1)
+#define IOU_SCNTRS_CONTROL_EN	U(1)
 
 #define APU_CLUSTER0		U(0xECC00000)
 #define APU_RVBAR_L_0		U(0x40)
@@ -134,6 +139,7 @@
  * IRQ constants
  ******************************************************************************/
 #define VERSAL_NET_IRQ_SEC_PHY_TIMER	U(29)
+#define ARM_IRQ_SEC_PHY_TIMER	29
 
 /*******************************************************************************
  * UART related constants
@@ -141,35 +147,38 @@
 #define VERSAL_NET_UART0_BASE		U(0xF1920000)
 #define VERSAL_NET_UART1_BASE		U(0xF1930000)
 
-#define VERSAL_NET_UART_BAUDRATE	115200
+#define UART_BAUDRATE	115200
 
-#if VERSAL_NET_CONSOLE_IS(pl011_1)
-#define VERSAL_NET_UART_BASE		VERSAL_NET_UART1_BASE
+#if CONSOLE_IS(pl011) || CONSOLE_IS(dtb)
+#define UART_BASE		VERSAL_NET_UART0_BASE
+# define UART_TYPE	CONSOLE_PL011
+#elif CONSOLE_IS(pl011_1)
+#define UART_BASE            VERSAL_NET_UART1_BASE
+# define UART_TYPE	CONSOLE_PL011
+#elif CONSOLE_IS(dcc)
+# define UART_BASE	0x0
+# define UART_TYPE	CONSOLE_DCC
+#elif CONSOLE_IS(none)
+# define UART_TYPE	CONSOLE_NONE
 #else
-/* Default console is UART0 */
-#define VERSAL_NET_UART_BASE            VERSAL_NET_UART0_BASE
+# error "invalid VERSAL_NET_CONSOLE"
 #endif
 
-#define PLAT_VERSAL_NET_CRASH_UART_BASE		VERSAL_NET_UART_BASE
-#define PLAT_VERSAL_NET_CRASH_UART_CLK_IN_HZ	VERSAL_NET_UART_CLOCK
-#define VERSAL_NET_CONSOLE_BAUDRATE		VERSAL_NET_UART_BAUDRATE
-
-/*******************************************************************************
- * IPI registers and bitfields
- ******************************************************************************/
-#define IPI0_REG_BASE		(0xEB330000U)
-#define IPI0_TRIG_BIT		(1 << 2)
-#define PMC_IPI_TRIG_BIT	(1 << 1)
-#define IPI1_REG_BASE		(0xEB340000U)
-#define IPI1_TRIG_BIT		(1 << 3)
-#define IPI2_REG_BASE		(0xEB350000U)
-#define IPI2_TRIG_BIT		(1 << 4)
-#define IPI3_REG_BASE		(0xEB360000U)
-#define IPI3_TRIG_BIT		(1 << 5)
-#define IPI4_REG_BASE		(0xEB370000U)
-#define IPI4_TRIG_BIT		(1 << 6)
-#define IPI5_REG_BASE		(0xEB380000U)
-#define IPI5_TRIG_BIT		(1 << 7)
+/* Runtime console */
+#if defined(CONSOLE_RUNTIME)
+#if RT_CONSOLE_IS(pl011) || RT_CONSOLE_IS(dtb)
+# define RT_UART_BASE VERSAL_NET_UART0_BASE
+# define RT_UART_TYPE	CONSOLE_PL011
+#elif RT_CONSOLE_IS(pl011_1)
+# define RT_UART_BASE VERSAL_NET_UART1_BASE
+# define RT_UART_TYPE	CONSOLE_PL011
+#elif RT_CONSOLE_IS(dcc)
+# define RT_UART_BASE	0x0
+# define RT_UART_TYPE	CONSOLE_DCC
+#else
+# error "invalid CONSOLE_RUNTIME"
+#endif
+#endif
 
 /* Processor core device IDs */
 #define PM_DEV_CLUSTER0_ACPU_0	(0x1810C0AFU)

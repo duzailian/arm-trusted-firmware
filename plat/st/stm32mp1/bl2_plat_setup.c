@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2023, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2015-2024, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -142,8 +142,6 @@ void bl2_el3_early_platform_setup(u_register_t arg0,
 				  u_register_t arg2 __unused,
 				  u_register_t arg3 __unused)
 {
-	stm32mp_setup_early_console();
-
 	stm32mp_save_boot_ctx_address(arg0);
 }
 
@@ -255,11 +253,6 @@ void bl2_el3_plat_arch_setup(void)
 		mmio_clrbits_32(rcc_base + RCC_BDCR, RCC_BDCR_VSWRST);
 	}
 
-#if STM32MP15
-	/* Disable MCKPROT */
-	mmio_clrbits_32(rcc_base + RCC_TZCR, RCC_TZCR_MCKPROT);
-#endif
-
 	/*
 	 * Set minimum reset pulse duration to 31ms for discrete power
 	 * supplied boards.
@@ -318,7 +311,7 @@ void bl2_el3_plat_arch_setup(void)
 
 skip_console_init:
 #if !TRUSTED_BOARD_BOOT
-	if (stm32mp_is_closed_device()) {
+	if (stm32mp_check_closed_device() == STM32MP_CHIP_SEC_CLOSED) {
 		/* Closed chip mandates authentication */
 		ERROR("Secure chip: TRUSTED_BOARD_BOOT must be enabled\n");
 		panic();
@@ -338,7 +331,7 @@ skip_console_init:
 		print_pmic_info_and_debug();
 	}
 
-	stm32mp1_syscfg_init();
+	stm32mp_syscfg_init();
 
 	if (stm32_iwdg_init() < 0) {
 		panic();
@@ -347,7 +340,7 @@ skip_console_init:
 	stm32_iwdg_refresh();
 
 	if (bsec_read_debug_conf() != 0U) {
-		if (stm32mp_is_closed_device()) {
+		if (stm32mp_check_closed_device() == STM32MP_CHIP_SEC_CLOSED) {
 #if DEBUG
 			WARN("\n%s", debug_msg);
 #else
@@ -367,10 +360,12 @@ skip_console_init:
 	print_reset_reason();
 
 #if STM32MP15
-	update_monotonic_counter();
+	if (stm32mp_check_closed_device() == STM32MP_CHIP_SEC_CLOSED) {
+		update_monotonic_counter();
+	}
 #endif
 
-	stm32mp1_syscfg_enable_io_compensation_finish();
+	stm32mp_syscfg_enable_io_compensation_finish();
 
 	fconf_populate("TB_FW", STM32MP_DTB_BASE);
 
@@ -445,8 +440,7 @@ int bl2_plat_handle_post_image_load(unsigned int image_id)
 				paged_mem_params = get_bl_mem_params_node(BL32_EXTRA2_IMAGE_ID);
 				if (paged_mem_params != NULL) {
 					paged_mem_params->image_info.image_base = STM32MP_DDR_BASE +
-						(dt_get_ddr_size() - STM32MP_DDR_S_SIZE -
-						 STM32MP_DDR_SHMEM_SIZE);
+						(dt_get_ddr_size() - STM32MP_DDR_S_SIZE);
 					paged_mem_params->image_info.image_max_size =
 						STM32MP_DDR_S_SIZE;
 				}
@@ -467,7 +461,8 @@ int bl2_plat_handle_post_image_load(unsigned int image_id)
 		break;
 
 	case BL32_IMAGE_ID:
-		if (optee_header_is_valid(bl_mem_params->image_info.image_base)) {
+		if ((bl_mem_params->image_info.image_base != 0UL) &&
+		    (optee_header_is_valid(bl_mem_params->image_info.image_base))) {
 			image_info_t *paged_image_info = NULL;
 
 			/* BL32 is OP-TEE header */
@@ -513,7 +508,7 @@ int bl2_plat_handle_post_image_load(unsigned int image_id)
 		assert(bl32_mem_params != NULL);
 		bl32_mem_params->ep_info.lr_svc = bl_mem_params->ep_info.pc;
 #if PSA_FWU_SUPPORT
-		stm32mp1_fwu_set_boot_idx();
+		stm32_fwu_set_boot_idx();
 #endif /* PSA_FWU_SUPPORT */
 		break;
 

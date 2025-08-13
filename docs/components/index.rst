@@ -26,3 +26,6 @@ Components
    realm-management-extension
    rmm-el3-comms-spec
    granule-protection-tables-design
+   ven-el3-service
+   ven-el3-debugfs
+   context-management-library

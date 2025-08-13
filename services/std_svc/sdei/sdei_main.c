@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2017-2025, ARM Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -34,8 +34,6 @@
 	((((_major)) << 48ULL) | (((_minor)) << 32ULL) | (_vendor))
 
 #define LOWEST_INTR_PRIORITY		0xff
-
-#define is_valid_affinity(_mpidr)	(plat_core_pos_by_mpidr(_mpidr) >= 0)
 
 CASSERT(PLAT_SDEI_CRITICAL_PRI < PLAT_SDEI_NORMAL_PRI,
 		sdei_critical_must_have_higher_priority);
@@ -262,7 +260,7 @@ static int validate_flags(uint64_t flags, uint64_t mpidr)
 	/* Validate flags */
 	switch (flags) {
 	case SDEI_REGF_RM_PE:
-		if (!is_valid_affinity(mpidr))
+		if (!is_valid_mpidr(mpidr))
 			return SDEI_EINVAL;
 		break;
 	case SDEI_REGF_RM_ANY:
@@ -710,8 +708,8 @@ static int sdei_interrupt_bind(unsigned int intr_num)
 	sdei_ev_map_t *map;
 	bool retry = true, shared_mapping;
 
-	/* SGIs are not allowed to be bound */
-	if (plat_ic_is_sgi(intr_num) != 0)
+	/* Interrupt must be either PPI or SPI */
+	if (!(plat_ic_is_ppi(intr_num) || plat_ic_is_spi(intr_num)))
 		return SDEI_EINVAL;
 
 	shared_mapping = (plat_ic_is_spi(intr_num) != 0);
@@ -746,7 +744,9 @@ static int sdei_interrupt_bind(unsigned int intr_num)
 			return SDEI_ENOMEM;
 
 		/* The returned mapping must be dynamic */
-		assert(is_map_dynamic(map));
+		if (!is_map_dynamic(map)) {
+			return SDEI_ENOMEM;
+		}
 
 		/*
 		 * We cannot assert for bound maps here, as we might be racing
@@ -910,25 +910,57 @@ static int sdei_shared_reset(void)
 /* Send a signal to another SDEI client PE */
 static int sdei_signal(int ev_num, uint64_t target_pe)
 {
+	unsigned int i;
 	sdei_ev_map_t *map;
+	sdei_ev_map_t *map_priv;
+	sdei_entry_t *se;
 
 	/* Only event 0 can be signalled */
-	if (ev_num != SDEI_EVENT_0)
+	if (ev_num != SDEI_EVENT_0) {
 		return SDEI_EINVAL;
+	}
 
 	/* Find mapping for event 0 */
 	map = find_event_map(SDEI_EVENT_0);
-	if (map == NULL)
+	if (map == NULL) {
 		return SDEI_EINVAL;
+	}
 
 	/* The event must be signalable */
-	if (!is_event_signalable(map))
+	if (!is_event_signalable(map)) {
 		return SDEI_EINVAL;
+	}
 
 	/* Validate target */
-	if (plat_core_pos_by_mpidr(target_pe) < 0)
+	if (!is_valid_mpidr(target_pe)) {
 		return SDEI_EINVAL;
+	}
 
+	/* The event must be unmasked */
+	if (sdei_is_target_pe_masked(target_pe)) {
+		return SDEI_EINVAL;
+	}
+
+	/* The event must be registered and enabled */
+	if (is_event_private(map)) {
+		map_priv = SDEI_PRIVATE_MAPPING()->map;
+		for (i = 0; i < SDEI_PRIVATE_MAPPING()->num_maps; i++) {
+			if (map_priv->ev_num == SDEI_EVENT_0) {
+				se = get_event_entry_target_pe((long int) i,
+				(unsigned int) SDEI_PRIVATE_MAPPING()->num_maps, target_pe);
+				if (se == NULL) {
+					return SDEI_EINVAL;
+				}
+				if (!(GET_EV_STATE((se), REGISTERED))) {
+					return SDEI_EINVAL;
+				}
+				if (!(GET_EV_STATE((se), ENABLED))) {
+					return SDEI_EINVAL;
+				}
+			}
+			map_priv++;
+		}
+	}
 	/* Raise SGI. Platform will validate target_pe */
 	plat_ic_raise_el3_sgi((int) map->intr, (u_register_t) target_pe);
 

@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2014-2022, Arm Limited and Contributors. All rights reserved.
  * Copyright (c) 2018-2022, Xilinx, Inc. All rights reserved.
- * Copyright (c) 2022-2023, Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2022-2025, Advanced Micro Devices, Inc. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -44,13 +44,13 @@
 # define BL31_LIMIT			U(0x100000000)
 #else
 # define BL31_BASE			U(0x1000)
-# define BL31_LIMIT			U(0x7ffff)
+# define BL31_LIMIT			U(0x80000)
 #endif
 #else
-# define BL31_BASE			(ZYNQMP_ATF_MEM_BASE)
-# define BL31_LIMIT			(ZYNQMP_ATF_MEM_BASE + ZYNQMP_ATF_MEM_SIZE - 1)
+# define BL31_BASE			U(ZYNQMP_ATF_MEM_BASE)
+# define BL31_LIMIT			(UL(ZYNQMP_ATF_MEM_BASE) + U(ZYNQMP_ATF_MEM_SIZE))
 # ifdef ZYNQMP_ATF_MEM_PROGBITS_SIZE
-#  define BL31_PROGBITS_LIMIT		(ZYNQMP_ATF_MEM_BASE + ZYNQMP_ATF_MEM_PROGBITS_SIZE - 1)
+#  define BL31_PROGBITS_LIMIT		(UL(ZYNQMP_ATF_MEM_BASE) + U(ZYNQMP_ATF_MEM_PROGBITS_SIZE))
 # endif
 #endif
 
@@ -59,10 +59,10 @@
  ******************************************************************************/
 #ifndef ZYNQMP_BL32_MEM_BASE
 # define BL32_BASE			U(0x60000000)
-# define BL32_LIMIT			U(0x7fffffff)
+# define BL32_LIMIT			U(0x80000000)
 #else
-# define BL32_BASE			(ZYNQMP_BL32_MEM_BASE)
-# define BL32_LIMIT			(ZYNQMP_BL32_MEM_BASE + ZYNQMP_BL32_MEM_SIZE - 1)
+# define BL32_BASE			U(ZYNQMP_BL32_MEM_BASE)
+# define BL32_LIMIT			(UL(ZYNQMP_BL32_MEM_BASE) + U(ZYNQMP_BL32_MEM_SIZE))
 #endif
 
 /*******************************************************************************
@@ -71,14 +71,20 @@
 #ifndef PRELOADED_BL33_BASE
 # define PLAT_ARM_NS_IMAGE_BASE	U(0x8000000)
 #else
-# define PLAT_ARM_NS_IMAGE_BASE	PRELOADED_BL33_BASE
+# define PLAT_ARM_NS_IMAGE_BASE	U(PRELOADED_BL33_BASE)
 #endif
+
+/*******************************************************************************
+ * HIGH and LOW DDR MAX definitions.
+ ******************************************************************************/
+#define PLAT_DDR_LOWMEM_MAX		U(0x80000000)
+#define PLAT_DDR_HIGHMEM_MAX		U(0x100000000)
 
 /*******************************************************************************
  * TSP  specific defines.
  ******************************************************************************/
 #define TSP_SEC_MEM_BASE		BL32_BASE
-#define TSP_SEC_MEM_SIZE		(BL32_LIMIT - BL32_BASE + 1)
+#define TSP_SEC_MEM_SIZE		(BL32_LIMIT - BL32_BASE)
 
 /* ID of the secure physical generic timer interrupt used by the TSP */
 #define TSP_IRQ_SEC_PHY_TIMER		ARM_IRQ_SEC_PHY_TIMER
@@ -87,7 +93,6 @@
  * Platform specific page table and MMU setup constants
  ******************************************************************************/
 #define XILINX_OF_BOARD_DTB_MAX_SIZE	U(0x200000)
-#define PLAT_DDR_LOWMEM_MAX		U(0x80000000)
 #define PLAT_OCM_BASE			U(0xFFFC0000)
 #define PLAT_OCM_LIMIT			U(0xFFFFFFFF)
 
@@ -172,5 +177,11 @@
 #define PLAT_ARM_G0_IRQ_PROPS(grp) \
 	INTR_PROP_DESC(ARM_IRQ_SEC_SGI_0, PLAT_SDEI_NORMAL_PRI,	grp, \
 			GIC_INTR_CFG_EDGE)
+
+#if (defined(XILINX_OF_BOARD_DTB_ADDR) && !IS_TFA_IN_OCM(BL31_BASE))
+#define XLNX_DT_CFG 1
+#else
+#define XLNX_DT_CFG 0
+#endif
 
 #endif /* PLATFORM_DEF_H */

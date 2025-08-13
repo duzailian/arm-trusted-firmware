@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, STMicroelectronics - All Rights Reserved
+ * Copyright (c) 2021-2025, STMicroelectronics - All Rights Reserved
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -13,19 +13,18 @@
 #include <drivers/st/regulator_fixed.h>
 #include <libfdt.h>
 
-#ifndef PLAT_NB_FIXED_REGS
-#error "Missing PLAT_NB_FIXED_REGS"
+#ifndef PLAT_NB_FIXED_REGUS
+#error "Missing PLAT_NB_FIXED_REGUS"
 #endif
 
 #define FIXED_NAME_LEN 32
 
 struct fixed_data {
 	char name[FIXED_NAME_LEN];
-	uint16_t volt;
 	struct regul_description desc;
 };
 
-static struct fixed_data data[PLAT_NB_FIXED_REGS];
+static struct fixed_data data[PLAT_NB_FIXED_REGUS];
 
 static int fixed_set_state(const struct regul_description *desc, bool state)
 {
@@ -79,7 +78,7 @@ int fixed_regulator_register(void)
 		}
 
 		count++;
-		assert(count <= PLAT_NB_FIXED_REGS);
+		assert(count <= PLAT_NB_FIXED_REGUS);
 
 	}
 

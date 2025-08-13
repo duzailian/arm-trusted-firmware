@@ -36,9 +36,15 @@ You can find additional definitions in the `Arm Glossary`_.
    CSS
       Compute Sub-System
 
+   CRB
+      Command Response Buffer
+
    CVE
       Common Vulnerabilities and Exposures. A CVE document is commonly used to
       describe a publicly-known security vulnerability.
+
+   DICE
+      Device Identifier Composition Engine
 
    DCE
       DRTM Configuration Environment
@@ -51,6 +57,9 @@ You can find additional definitions in the `Arm Glossary`_.
 
    DRTM
       Dynamic Root of Trust for Measurement
+
+   DPE
+      DICE Protection Environment
 
    DS-5
       Arm Development Studio 5
@@ -82,6 +91,9 @@ You can find additional definitions in the `Arm Glossary`_.
    FF-A
       Firmware Framework for Arm A-profile
 
+   FIFO
+      First In, First Out
+
    FIP
       Firmware Image Package
 
@@ -93,6 +105,12 @@ You can find additional definitions in the `Arm Glossary`_.
 
    GIC
       Generic Interrupt Controller
+
+   HES
+      Arm CCA Hardware Enforced Security
+
+   I2C
+      Inter-Integrated Circuit Protocol
 
    ISA
       Instruction Set Architecture
@@ -121,6 +139,9 @@ You can find additional definitions in the `Arm Glossary`_.
       Memory Tagging Extension. An optional Armv8.5 extension that enables
       hardware-assisted memory tagging.
 
+   LTS
+      Long-Term Support
+
    OEN
       Owning Entity Number
 
@@ -129,6 +150,9 @@ You can find additional definitions in the `Arm Glossary`_.
 
    OTE
       Open-source Trusted Execution Environment
+
+   PCR
+      Platform Configuration Register
 
    PDD
       Platform Design Document
@@ -142,6 +166,9 @@ You can find additional definitions in the `Arm Glossary`_.
    PSA
       Platform Security Architecture
 
+   PSR
+     Platform Security Requirements
+
    PSCI
       Power State Coordination Interface
 
@@ -152,6 +179,9 @@ You can find additional definitions in the `Arm Glossary`_.
 
    ROT
       Root of Trust
+
+   RSE
+      Runtime Security Engine
 
    SCMI
       System Control and Management Interface
@@ -189,6 +219,9 @@ You can find additional definitions in the `Arm Glossary`_.
 
    SPM
       Secure Partition Manager
+
+   SPI
+      Serial Peripheral Interface
 
    SRTM
       Static Root of Trust for Measurement

@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2018-2019, Arm Limited and Contributors. All rights reserved.
  * Copyright (c) 2018-2022, Xilinx, Inc. All rights reserved.
- * Copyright (c) 2022, Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2022-2024, Advanced Micro Devices, Inc. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -20,13 +20,12 @@
 #include "pm_svc_main.h"
 
 /* SMC function IDs for SiP Service queries */
-#define VERSAL_NET_SIP_SVC_CALL_COUNT	(0x8200ff00U)
 #define VERSAL_NET_SIP_SVC_UID		(0x8200ff01U)
 #define VERSAL_NET_SIP_SVC_VERSION	(0x8200ff03U)
 
 /* SiP Service Calls version numbers */
 #define SIP_SVC_VERSION_MAJOR		(0U)
-#define SIP_SVC_VERSION_MINOR		(1U)
+#define SIP_SVC_VERSION_MINOR		(2U)
 
 /* These macros are used to identify PM calls from the SMC function ID */
 #define SIP_FID_MASK	GENMASK(23, 16)
@@ -38,11 +37,14 @@
 
 /* SiP Service UUID */
 DEFINE_SVC_UUID2(versal_net_sip_uuid,
-		0x80d4c25a, 0xebaf, 0x11eb, 0x94, 0x68,
+		0x80d4c25au, 0xebaf, 0x11eb, 0x94, 0x68,
 		0x0b, 0x4e, 0x3b, 0x8f, 0xc3, 0x60);
 
 /**
  * sip_svc_setup() - Setup SiP Service
+ *
+ * Return: 0 on success, negative error code on failure.
+ *
  */
 static int32_t sip_svc_setup(void)
 {
@@ -67,7 +69,7 @@ static uintptr_t sip_svc_smc_handler(uint32_t smc_fid,
 	VERBOSE("SMCID: 0x%08x, x1: 0x%016" PRIx64 ", x2: 0x%016" PRIx64 ", x3: 0x%016" PRIx64 ", x4: 0x%016" PRIx64 "\n",
 		smc_fid, x1, x2, x3, x4);
 
-	if (smc_fid & SIP_FID_MASK) {
+	if ((smc_fid & SIP_FID_MASK) != 0U) {
 		WARN("SMC out of SiP assinged range: 0x%x\n", smc_fid);
 		SMC_RET1(handle, SMC_UNK);
 	}
@@ -85,10 +87,6 @@ static uintptr_t sip_svc_smc_handler(uint32_t smc_fid,
 
 	/* Let PM SMC handler deal with PM-related requests */
 	switch (smc_fid) {
-	case VERSAL_NET_SIP_SVC_CALL_COUNT:
-		/* PM functions + default functions */
-		SMC_RET1(handle, 2);
-
 	case VERSAL_NET_SIP_SVC_UID:
 		SMC_UUID_RET(handle, versal_net_sip_uuid);
 

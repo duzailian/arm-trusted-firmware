@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2018-2020, Arm Limited and Contributors. All rights reserved.
- * Copyright (c) 2022-2023, Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2022-2025, Advanced Micro Devices, Inc. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -123,7 +123,7 @@ static struct pinctrl_function pinctrl_functions[MAX_FUNCTION] =  {
 		.name = "qspi0",
 		.regval = 0x02,
 		.group_base = PINCTRL_GRP_QSPI0_0,
-		.group_size = PINCTRL_GRP_QSPI0_0 - PINCTRL_GRP_QSPI0_0 + 1U,
+		.group_size = PINCTRL_GRP_QSPI0_1 - PINCTRL_GRP_QSPI0_0 + 1U,
 	},
 	[PINCTRL_FUNC_QSPI_FBCLK] = {
 		.name = "qspi_fbclk",
@@ -135,7 +135,7 @@ static struct pinctrl_function pinctrl_functions[MAX_FUNCTION] =  {
 		.name = "qspi_ss",
 		.regval = 0x02,
 		.group_base = PINCTRL_GRP_QSPI_SS,
-		.group_size = PINCTRL_GRP_QSPI_SS - PINCTRL_GRP_QSPI_SS + 1U,
+		.group_size = PINCTRL_GRP_QSPI_SS_1 - PINCTRL_GRP_QSPI_SS + 1U,
 	},
 	[PINCTRL_FUNC_SPI0] = {
 		.name = "spi0",
@@ -383,6 +383,7 @@ static struct zynqmp_pin_group zynqmp_pin_groups[MAX_PIN] = {
 	[PINCTRL_PIN_0] = {
 		.groups = &((uint16_t []) {
 			PINCTRL_GRP_QSPI0_0,
+			PINCTRL_GRP_QSPI0_1,
 			PINCTRL_GRP_RESERVED,
 			PINCTRL_GRP_RESERVED,
 			PINCTRL_GRP_TESTSCAN0_0,
@@ -401,6 +402,7 @@ static struct zynqmp_pin_group zynqmp_pin_groups[MAX_PIN] = {
 	[PINCTRL_PIN_1] = {
 		.groups = &((uint16_t []) {
 			PINCTRL_GRP_QSPI0_0,
+			PINCTRL_GRP_QSPI0_1,
 			PINCTRL_GRP_RESERVED,
 			PINCTRL_GRP_RESERVED,
 			PINCTRL_GRP_TESTSCAN0_0,
@@ -419,6 +421,7 @@ static struct zynqmp_pin_group zynqmp_pin_groups[MAX_PIN] = {
 	[PINCTRL_PIN_2] = {
 		.groups = &((uint16_t []) {
 			PINCTRL_GRP_QSPI0_0,
+			PINCTRL_GRP_QSPI0_1,
 			PINCTRL_GRP_RESERVED,
 			PINCTRL_GRP_RESERVED,
 			PINCTRL_GRP_TESTSCAN0_0,
@@ -437,6 +440,7 @@ static struct zynqmp_pin_group zynqmp_pin_groups[MAX_PIN] = {
 	[PINCTRL_PIN_3] = {
 		.groups = &((uint16_t []) {
 			PINCTRL_GRP_QSPI0_0,
+			PINCTRL_GRP_QSPI0_1,
 			PINCTRL_GRP_RESERVED,
 			PINCTRL_GRP_RESERVED,
 			PINCTRL_GRP_TESTSCAN0_0,
@@ -455,6 +459,7 @@ static struct zynqmp_pin_group zynqmp_pin_groups[MAX_PIN] = {
 	[PINCTRL_PIN_4] = {
 		.groups = &((uint16_t []) {
 			PINCTRL_GRP_QSPI0_0,
+			PINCTRL_GRP_QSPI0_1,
 			PINCTRL_GRP_RESERVED,
 			PINCTRL_GRP_RESERVED,
 			PINCTRL_GRP_TESTSCAN0_0,
@@ -473,6 +478,7 @@ static struct zynqmp_pin_group zynqmp_pin_groups[MAX_PIN] = {
 	[PINCTRL_PIN_5] = {
 		.groups = &((uint16_t []) {
 			PINCTRL_GRP_QSPI_SS,
+			PINCTRL_GRP_QSPI_SS_1,
 			PINCTRL_GRP_RESERVED,
 			PINCTRL_GRP_RESERVED,
 			PINCTRL_GRP_TESTSCAN0_0,
@@ -1946,12 +1952,13 @@ static struct zynqmp_pin_group zynqmp_pin_groups[MAX_PIN] = {
 };
 
 /**
- * pm_api_pinctrl_get_num_pins() - PM call to request number of pins
- * @npins	Number of pins
+ * pm_api_pinctrl_get_num_pins() - PM call to request number of pins.
+ * @npins: Number of pins.
  *
- * This function is used by master to get number of pins
+ * This function is used by master to get number of pins.
  *
- * @return	Returns success.
+ * Return: Returns success.
+ *
  */
 enum pm_ret_status pm_api_pinctrl_get_num_pins(uint32_t *npins)
 {
@@ -1961,12 +1968,13 @@ enum pm_ret_status pm_api_pinctrl_get_num_pins(uint32_t *npins)
 }
 
 /**
- * pm_api_pinctrl_get_num_functions() - PM call to request number of functions
- * @nfuncs	Number of functions
+ * pm_api_pinctrl_get_num_functions() - PM call to request number of functions.
+ * @nfuncs: Number of functions.
  *
- * This function is used by master to get number of functions
+ * This function is used by master to get number of functions.
  *
- * @return	Returns success.
+ * Return: Returns success.
+ *
  */
 enum pm_ret_status pm_api_pinctrl_get_num_functions(uint32_t *nfuncs)
 {
@@ -1977,49 +1985,54 @@ enum pm_ret_status pm_api_pinctrl_get_num_functions(uint32_t *nfuncs)
 
 /**
  * pm_api_pinctrl_get_num_func_groups() - PM call to request number of
- *					  function groups
- * @fid		Function Id
- * @ngroups	Number of function groups
+ *					  function groups.
+ * @fid: Function Id.
+ * @ngroups: Number of function groups.
  *
- * This function is used by master to get number of function groups
+ * This function is used by master to get number of function groups.
  *
- * @return	Returns success.
+ * Return: Returns success.
+ *
  */
 enum pm_ret_status pm_api_pinctrl_get_num_func_groups(uint32_t fid,
 						      uint32_t *ngroups)
 {
-	if (fid >= MAX_FUNCTION) {
-		return PM_RET_ERROR_ARGS;
+	enum pm_ret_status status = PM_RET_SUCCESS;
+
+	if (fid >= (uint32_t)MAX_FUNCTION) {
+		status = PM_RET_ERROR_ARGS;
+	} else {
+
+		*ngroups = pinctrl_functions[fid].group_size;
 	}
 
-	*ngroups = pinctrl_functions[fid].group_size;
-
-	return PM_RET_SUCCESS;
+	return status;
 }
 
 /**
- * pm_api_pinctrl_get_function_name() - PM call to request a function name
- * @fid		Function ID
- * @name	Name of function (max 16 bytes)
+ * pm_api_pinctrl_get_function_name() - PM call to request a function name.
+ * @fid: Function ID.
+ * @name: Name of function (max 16 bytes).
  *
  * This function is used by master to get name of function specified
  * by given function ID.
+ *
  */
 void pm_api_pinctrl_get_function_name(uint32_t fid, char *name)
 {
-	if (fid >= MAX_FUNCTION) {
-		memcpy(name, END_OF_FUNCTION, FUNCTION_NAME_LEN);
+	if (fid >= (uint32_t)MAX_FUNCTION) {
+		(void)memcpy(name, END_OF_FUNCTION, FUNCTION_NAME_LEN);
 	} else {
-		memcpy(name, pinctrl_functions[fid].name, FUNCTION_NAME_LEN);
+		(void)memcpy(name, pinctrl_functions[fid].name, FUNCTION_NAME_LEN);
 	}
 }
 
 /**
  * pm_api_pinctrl_get_function_groups() - PM call to request first 6 function
- *					  groups of function Id
- * @fid		Function ID
- * @index	Index of next function groups
- * @groups	Function groups
+ *					  groups of function Id.
+ * @fid: Function ID.
+ * @index: Index of next function groups.
+ * @groups: Function groups.
  *
  * This function is used by master to get function groups specified
  * by given function Id. This API will return 6 function groups with
@@ -2031,6 +2044,7 @@ void pm_api_pinctrl_get_function_name(uint32_t fid, char *name)
  * function groups 6, 7, 8, 9, 10 and 11 and so on.
  *
  * Return: Returns status, either success or error+reason.
+ *
  */
 enum pm_ret_status pm_api_pinctrl_get_function_groups(uint32_t fid,
 						      uint32_t index,
@@ -2039,12 +2053,14 @@ enum pm_ret_status pm_api_pinctrl_get_function_groups(uint32_t fid,
 	uint16_t grps;
 	uint16_t end_of_grp_offset;
 	uint16_t i;
+	enum pm_ret_status status = PM_RET_SUCCESS;
 
-	if (fid >= MAX_FUNCTION) {
-		return PM_RET_ERROR_ARGS;
+	if (fid >= (uint32_t)MAX_FUNCTION) {
+		status = PM_RET_ERROR_ARGS;
+		goto exit_label;
 	}
 
-	memset(groups, END_OF_GROUPS, GROUPS_PAYLOAD_LEN);
+	(void)memset(groups, END_OF_GROUPS, GROUPS_PAYLOAD_LEN);
 
 	grps = pinctrl_functions[fid].group_base;
 	end_of_grp_offset = grps + pinctrl_functions[fid].group_size;
@@ -2053,18 +2069,19 @@ enum pm_ret_status pm_api_pinctrl_get_function_groups(uint32_t fid,
 		if ((grps + index + i) >= end_of_grp_offset) {
 			break;
 		}
-		groups[i] = (grps + index + i);
+		groups[i] = (uint16_t)(grps + index + i);
 	}
 
-	return PM_RET_SUCCESS;
+exit_label:
+	return status;
 }
 
 /**
  * pm_api_pinctrl_get_pin_groups() - PM call to request first 6 pin
- *				     groups of pin
- * @pin		Pin
- * @index	Index of next pin groups
- * @groups	pin groups
+ *                                   groups of pin.
+ * @pin: Pin.
+ * @index: Index of next pin groups.
+ * @groups: pin groups.
  *
  * This function is used by master to get pin groups specified
  * by given pin Id. This API will return 6 pin groups with
@@ -2076,29 +2093,34 @@ enum pm_ret_status pm_api_pinctrl_get_function_groups(uint32_t fid,
  * pin groups 6, 7, 8, 9, 10 and 11 and so on.
  *
  * Return: Returns status, either success or error+reason.
+ *
  */
 enum pm_ret_status pm_api_pinctrl_get_pin_groups(uint32_t pin,
 						 uint32_t index,
 						 uint16_t *groups)
 {
 	uint32_t i;
-	uint16_t *grps;
+	const uint16_t *grps;
+	enum pm_ret_status status = PM_RET_SUCCESS;
 
-	if (pin >= MAX_PIN) {
-		return PM_RET_ERROR_ARGS;
+	if (pin >= (uint32_t)MAX_PIN) {
+		status = PM_RET_ERROR_ARGS;
+		goto exit_label;
 	}
 
-	memset(groups, END_OF_GROUPS, GROUPS_PAYLOAD_LEN);
+	(void)memset(groups, END_OF_GROUPS, GROUPS_PAYLOAD_LEN);
 
 	grps = *zynqmp_pin_groups[pin].groups;
 	if (grps == NULL) {
-		return PM_RET_SUCCESS;
+		status = PM_RET_SUCCESS;
+		goto exit_label;
 	}
 
 	/* Skip groups till index */
 	for (i = 0; i < index; i++) {
 		if (grps[i] == (uint16_t)END_OF_GROUPS) {
-			return PM_RET_SUCCESS;
+			status = PM_RET_SUCCESS;
+			goto exit_label;
 		}
 	}
 
@@ -2109,5 +2131,6 @@ enum pm_ret_status pm_api_pinctrl_get_pin_groups(uint32_t pin,
 		}
 	}
 
-	return PM_RET_SUCCESS;
+exit_label:
+	return status;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2023, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2013-2024, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -24,6 +24,11 @@ MEMORY {
 }
 
 SECTIONS {
+    ROM_REGION_START = ORIGIN(ROM);
+    ROM_REGION_LENGTH = LENGTH(ROM);
+    RAM_REGION_START = ORIGIN(RAM);
+    RAM_REGION_LENGTH = LENGTH(RAM);
+
     . = BL1_RO_BASE;
 
     ASSERT(. == ALIGN(PAGE_SIZE),
@@ -31,11 +36,15 @@ SECTIONS {
 
 #if SEPARATE_CODE_AND_RODATA
     .text . : {
+        ASSERT(. == ALIGN(PAGE_SIZE),
+        ".text address is not aligned on a page boundary.");
+
         __TEXT_START__ = .;
 
         *bl1_entrypoint.o(.text*)
         *(SORT_BY_ALIGNMENT(.text*))
         *(.vectors)
+        __TEXT_END_UNALIGNED__ = .;
 
         . = ALIGN(PAGE_SIZE);
 
@@ -67,12 +76,16 @@ SECTIONS {
          * aligned and lld does not align the LMA to the alignment specified
          * on the .data section.
          */
+        __RODATA_END_UNALIGNED__ = .;
         __RODATA_END__ = .;
 
         . = ALIGN(16);
     } >ROM
 #else /* SEPARATE_CODE_AND_RODATA */
     .ro . : {
+        ASSERT(. == ALIGN(PAGE_SIZE),
+        ".ro address is not aligned on a page boundary.");
+
         __RO_START__ = .;
 
         *bl1_entrypoint.o(.text*)
@@ -97,10 +110,13 @@ SECTIONS {
     ASSERT(__CPU_OPS_END__ > __CPU_OPS_START__,
         "cpu_ops not defined for this platform.")
 
+    ROM_REGION_END = .;
     . = BL1_RW_BASE;
 
     ASSERT(BL1_RW_BASE == ALIGN(PAGE_SIZE),
         "BL1_RW_BASE address is not aligned on a page boundary.")
+
+    __RW_START__ = .;
 
     DATA_SECTION >RAM AT>ROM
 
@@ -134,6 +150,8 @@ SECTIONS {
     } >RAM
 #endif /* USE_COHERENT_MEM */
 
+    __RW_END__ = .;
+
     __BL1_RAM_START__ = ADDR(.data);
     __BL1_RAM_END__ = .;
 
@@ -157,4 +175,5 @@ SECTIONS {
 #endif /* USE_COHERENT_MEM */
 
     ASSERT(. <= BL1_RW_LIMIT, "BL1's RW section has exceeded its limit.")
+    RAM_REGION_END = .;
 }

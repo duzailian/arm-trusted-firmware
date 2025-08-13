@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2023, Arm Limited and Contributors. All rights reserved.
+ * Copyright (c) 2013-2024, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -32,6 +32,7 @@
 #include <cdefs.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 
 #include <drivers/console.h>
@@ -91,6 +92,12 @@
 # define VERBOSE(...)	no_tf_log(LOG_MARKER_VERBOSE __VA_ARGS__)
 #endif
 
+#if EARLY_CONSOLE
+#define EARLY_ERROR(...)	ERROR(__VA_ARGS__)
+#else /* !EARLY_CONSOLE */
+#define EARLY_ERROR(...)	no_tf_log(LOG_MARKER_ERROR __VA_ARGS__)
+#endif /* EARLY_CONSOLE */
+
 const char *get_el_str(unsigned int el);
 
 #if ENABLE_BACKTRACE
@@ -129,7 +136,7 @@ void __dead2 __stack_chk_fail(void);
 
 void tf_log(const char *fmt, ...) __printflike(1, 2);
 void tf_log_newline(const char log_fmt[2]);
-void tf_log_set_max_level(unsigned int log_level);
+void tf_log_set_max_level(uint32_t log_level);
 
 #endif /* __ASSEMBLER__ */
 #endif /* DEBUG_H */

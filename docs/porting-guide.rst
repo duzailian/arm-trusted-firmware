@@ -256,10 +256,10 @@ likely to be suitable for all platform ports.
 
    Defines the maximum address in secure RAM that the BL31 image can occupy.
 
--  **#define : PLAT_RSS_COMMS_PAYLOAD_MAX_SIZE**
+-  **#define : PLAT_RSE_COMMS_PAYLOAD_MAX_SIZE**
 
-   Defines the maximum message size between AP and RSS. Need to define if
-   platform supports RSS.
+   Defines the maximum message size between AP and RSE. Need to define if
+   platform supports RSE.
 
 For every image, the platform must define individual identifiers that will be
 used by BL1 or BL2 to load the corresponding image into memory from non-volatile
@@ -318,13 +318,6 @@ also be defined:
 
    Firmware Update (FWU) certificate identifier, used by NS_BL1U to load the
    FWU content certificate.
-
--  **#define : PLAT_CRYPTOCELL_BASE**
-
-   This defines the base address of Arm® TrustZone® CryptoCell and must be
-   defined if CryptoCell crypto driver is used for Trusted Board Boot. For
-   capable Arm platforms, this driver is used if ``ARM_CRYPTOCELL_INTEG`` is
-   set.
 
 If the AP Firmware Updater Configuration image, BL2U is used, the following
 must also be defined:
@@ -591,32 +584,32 @@ configuration must be performed:
 If the platform port uses the Arm® Ethos™-N NPU driver with TZMP1 support
 enabled, the following constants and configuration must also be defined:
 
-- **ARM_ETHOSN_NPU_PROT_FW_NSAID**
+- **ETHOSN_NPU_PROT_FW_NSAID**
 
   Defines the Non-secure Access IDentity (NSAID) that the NPU shall use to
   access the protected memory that contains the NPU's firmware.
 
-- **ARM_ETHOSN_NPU_PROT_DATA_RW_NSAID**
+- **ETHOSN_NPU_PROT_DATA_RW_NSAID**
 
   Defines the Non-secure Access IDentity (NSAID) that the NPU shall use for
   read/write access to the protected memory that contains inference data.
 
-- **ARM_ETHOSN_NPU_PROT_DATA_RO_NSAID**
+- **ETHOSN_NPU_PROT_DATA_RO_NSAID**
 
   Defines the Non-secure Access IDentity (NSAID) that the NPU shall use for
   read-only access to the protected memory that contains inference data.
 
-- **ARM_ETHOSN_NPU_NS_RW_DATA_NSAID**
+- **ETHOSN_NPU_NS_RW_DATA_NSAID**
 
   Defines the Non-secure Access IDentity (NSAID) that the NPU shall use for
   read/write access to the non-protected memory.
 
-- **ARM_ETHOSN_NPU_NS_RO_DATA_NSAID**
+- **ETHOSN_NPU_NS_RO_DATA_NSAID**
 
   Defines the Non-secure Access IDentity (NSAID) that the NPU shall use for
   read-only access to the non-protected memory.
 
-- **ARM_ETHOSN_NPU_FW_IMAGE_BASE** and **ARM_ETHOSN_NPU_FW_IMAGE_LIMIT**
+- **ETHOSN_NPU_FW_IMAGE_BASE** and **ETHOSN_NPU_FW_IMAGE_LIMIT**
 
   Defines the physical address range that the NPU's firmware will be loaded
   into and executed from.
@@ -634,10 +627,10 @@ enabled, the following constants and configuration must also be defined:
 - Add MMU mappings such that:
 
  - BL2 can write the NPU firmware into the region defined by
-   ``ARM_ETHOSN_NPU_FW_IMAGE_BASE`` and ``ARM_ETHOSN_NPU_FW_IMAGE_LIMIT``
+   ``ETHOSN_NPU_FW_IMAGE_BASE`` and ``ETHOSN_NPU_FW_IMAGE_LIMIT``
  - BL31 (SiP service) can read the NPU firmware from the same region
 
-- Add the firmware image ID ``ARM_ETHOSN_NPU_FW_IMAGE_ID`` to the list of images
+- Add the firmware image ID ``ETHOSN_NPU_FW_IMAGE_ID`` to the list of images
   loaded by BL2.
 
 Please see the reference implementation code for the Juno platform as an example.
@@ -1008,7 +1001,7 @@ Function : plat_drtm_get_min_size_normal_world_dce()
 This function returns the size normal-world DCE of the platform.
 
 Function : plat_drtm_get_imp_def_dlme_region_size()
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ::
 
@@ -1019,7 +1012,7 @@ This function returns the size of implementation defined DLME region
 of the platform.
 
 Function : plat_drtm_get_tcb_hash_table_size()
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ::
 
@@ -1028,8 +1021,18 @@ Function : plat_drtm_get_tcb_hash_table_size()
 
 This function returns the size of TCB hash table of the platform.
 
+Function : plat_drtm_get_acpi_tables_region_size()
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    Argument : void
+    Return   : uint64_t
+
+This function returns the size of ACPI tables region of the platform.
+
 Function : plat_drtm_get_tcb_hash_features()
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ::
 
@@ -1038,6 +1041,17 @@ Function : plat_drtm_get_tcb_hash_features()
 
 This function returns the Maximum number of TCB hashes recorded by the
 platform.
+For more details see section 3.3 Table 6 of `DRTM`_ specification.
+
+Function : plat_drtm_get_dlme_img_auth_features()
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    Argument : void
+    Return   : uint64_t
+
+This function returns the DLME image authentication features.
 For more details see section 3.3 Table 6 of `DRTM`_ specification.
 
 Function : plat_drtm_validate_ns_region()
@@ -1497,6 +1511,23 @@ This function returns soc revision in below format
 
     soc_revision[0:30] = SOC revision of specific SOC
 
+Function : plat_get_soc_name()
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    Argument : char **
+    Return   : int32_t
+
+The plat_get_soc_name() function allows a platform to expose the SoC name to
+the firmware. It takes a pointer to a character pointer as an argument, which
+must be set to point to a static, null-terminated SoC name string. The string
+must be encoded in UTF-8 and should use only printable ASCII characters for
+compatibility. It must not exceed 136 bytes, including the null terminator. On
+success, the function returns SMC_ARCH_CALL_SUCCESS. If the platform does not
+support SoC name retrieval, it returns SMC_ARCH_CALL_NOT_SUPPORTED. This API
+allows platforms to support SoC name queries via SMCCC_ARCH_SOC_ID.
+
 Function : plat_is_smccc_feature_available()
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1508,43 +1539,6 @@ Function : plat_is_smccc_feature_available()
 This function returns SMC_ARCH_CALL_SUCCESS if the platform supports
 the SMCCC function specified in the argument; otherwise returns
 SMC_ARCH_CALL_NOT_SUPPORTED.
-
-Function : plat_mboot_measure_image()
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-::
-
-    Argument : unsigned int, image_info_t *
-    Return   : int
-
-When the MEASURED_BOOT flag is enabled:
-
--  This function measures the given image and records its measurement using
-   the measured boot backend driver.
--  On the Arm FVP port, this function measures the given image using its
-   passed id and information and then records that measurement in the
-   Event Log buffer.
--  This function must return 0 on success, a signed integer error code
-   otherwise.
-
-When the MEASURED_BOOT flag is disabled, this function doesn't do anything.
-
-Function : plat_mboot_measure_critical_data()
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-::
-
-    Argument : unsigned int, const void *, size_t
-    Return   : int
-
-When the MEASURED_BOOT flag is enabled:
-
--  This function measures the given critical data structure and records its
-   measurement using the measured boot backend driver.
--  This function must return 0 on success, a signed integer error code
-   otherwise.
-
-When the MEASURED_BOOT flag is disabled, this function doesn't do anything.
 
 Function : plat_can_cmo()
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1561,6 +1555,40 @@ When CONDITIONAL_CMO flag is enabled:
   otherwise.
 - The function must not clobber x1, x2 and x3. It's also not safe to rely on
   stack. Otherwise obey AAPCS.
+
+Struct: plat_try_images_ops [optional]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This optional structure holds platform hooks for alternative images load.
+It has to be defined in platform code and registered by calling
+plat_setup_try_img_ops() function, passing it the address of the
+plat_try_images_ops struct.
+
+Function : plat_setup_try_img_ops [optional]
+............................................
+
+::
+
+    Argument : const struct plat_try_images_ops *
+    Return   : void
+
+This optional function is called to register platform try images ops, given
+as argument.
+
+Function : plat_try_images_ops.next_instance [optional]
+.......................................................
+
+::
+
+    Argument : unsigned int image_id
+    Return   : int
+
+This optional function tries to load images from alternative places.
+In case PSA FWU is not used, it can be any instance or media. If PSA FWU is
+used, it is mandatory that the backup image is on the same media.
+This is required for MTD devices like NAND.
+The argument is the ID of the image for which we are looking for an alternative
+place. It returns 0 in case of success and a negative errno value otherwise.
 
 Modifications specific to a Boot Loader stage
 ---------------------------------------------
@@ -1650,9 +1678,6 @@ Function : bl1_platform_setup() [mandatory]
 This function executes with the MMU and data caches enabled. It is responsible
 for performing any remaining platform-specific setup that can occur after the
 MMU and data cache have been enabled.
-
-if support for multiple boot sources is required, it initializes the boot
-sequence used by plat_try_next_boot_source().
 
 In Arm standard platforms, this function initializes the storage abstraction
 layer used to load the next bootloader image.
@@ -1756,6 +1781,18 @@ This function can be used by the platforms to update/use image information
 corresponding to ``image_id``. This function is invoked in BL1, both in cold
 boot and FWU code path, before loading the image.
 
+Function : bl1_plat_calc_bl2_layout() [optional]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    Argument : const meminfo_t *bl1_mem_layout, meminfo_t *bl2_mem_layout
+    Return   : void
+
+This utility function calculates the memory layout of BL2, representing it in a
+`meminfo_t` structure. The default implementation derives this layout from the
+positioning of BL1’s RW data at the top of the memory layout.
+
 Function : bl1_plat_handle_post_image_load() [optional]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1812,42 +1849,6 @@ This function must return 0 on success, a non-null error code otherwise.
 
 The default implementation of this function asserts therefore platforms must
 override it when using the FWU feature.
-
-Function : bl1_plat_mboot_init() [optional]
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-::
-
-    Argument : void
-    Return   : void
-
-When the MEASURED_BOOT flag is enabled:
-
--  This function is used to initialize the backend driver(s) of measured boot.
--  On the Arm FVP port, this function is used to initialize the Event Log
-   backend driver, and also to write header information in the Event Log buffer.
-
-When the MEASURED_BOOT flag is disabled, this function doesn't do anything.
-
-Function : bl1_plat_mboot_finish() [optional]
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-::
-
-    Argument : void
-    Return   : void
-
-When the MEASURED_BOOT flag is enabled:
-
--  This function is used to finalize the measured boot backend driver(s),
-   and also, set the information for the next bootloader component to
-   extend the measurement if needed.
--  On the Arm FVP port, this function is used to pass the base address of
-   the Event Log buffer and its size to BL2 via tb_fw_config to extend the
-   Event Log buffer with the measurement of various images loaded by BL2.
-   It results in panic on error.
-
-When the MEASURED_BOOT flag is disabled, this function doesn't do anything.
 
 Boot Loader Stage 2 (BL2)
 -------------------------
@@ -1960,61 +1961,7 @@ Function : bl2_plat_preload_setup [optional]
 
 This optional function performs any BL2 platform initialization
 required before image loading, that is not done later in
-bl2_platform_setup(). Specifically, if support for multiple
-boot sources is required, it initializes the boot sequence used by
-plat_try_next_boot_source().
-
-Function : plat_try_next_boot_source() [optional]
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-::
-
-    Argument : void
-    Return   : int
-
-This optional function passes to the next boot source in the redundancy
-sequence.
-
-This function moves the current boot redundancy source to the next
-element in the boot sequence. If there are no more boot sources then it
-must return 0, otherwise it must return 1. The default implementation
-of this always returns 0.
-
-Function : bl2_plat_mboot_init() [optional]
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-::
-
-    Argument : void
-    Return   : void
-
-When the MEASURED_BOOT flag is enabled:
-
--  This function is used to initialize the backend driver(s) of measured boot.
--  On the Arm FVP port, this function is used to initialize the Event Log
-   backend driver with the Event Log buffer information (base address and
-   size) received from BL1. It results in panic on error.
-
-When the MEASURED_BOOT flag is disabled, this function doesn't do anything.
-
-Function : bl2_plat_mboot_finish() [optional]
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-::
-
-    Argument : void
-    Return   : void
-
-When the MEASURED_BOOT flag is enabled:
-
--  This function is used to finalize the measured boot backend driver(s),
-   and also, set the information for the next bootloader component to extend
-   the measurement if needed.
--  On the Arm FVP port, this function is used to pass the Event Log buffer
-   information (base address and size) to non-secure(BL33) and trusted OS(BL32)
-   via nt_fw and tos_fw config respectively. It results in panic on error.
-
-When the MEASURED_BOOT flag is disabled, this function doesn't do anything.
+bl2_platform_setup().
 
 Boot Loader Stage 2 (BL2) at EL3
 --------------------------------
@@ -2311,10 +2258,10 @@ Function : bl31_plat_runtime_setup() [optional]
     Argument : void
     Return   : void
 
-The purpose of this function is allow the platform to perform any BL31 runtime
-setup just prior to BL31 exit during cold boot. The default weak
-implementation of this function will invoke ``console_switch_state()`` to switch
-console output to consoles marked for use in the ``runtime`` state.
+The purpose of this function is to allow the platform to perform any BL31 runtime
+setup just prior to BL31 exit during cold boot. The default weak implementation
+of this function is empty. Any platform that needs to perform additional runtime
+setup, before BL31 exits, will need to override this function.
 
 Function : bl31_plat_get_next_image_ep_info() [mandatory]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2339,26 +2286,35 @@ Function : plat_rmmd_get_cca_attest_token() [mandatory when ENABLE_RME == 1]
 
 ::
 
-    Argument : uintptr_t, size_t *, uintptr_t, size_t
+    Argument : uintptr_t, size_t *, uintptr_t, size_t, size_t *
     Return   : int
 
-This function returns the Platform attestation token.
+This function returns the Platform attestation token. If the full token does
+not fit in the buffer, the function will return a hunk of the token and
+indicate how many bytes were copied and how many are pending. Multiple calls
+to this function may be needed to retrieve the entire token.
 
 The parameters of the function are:
 
     arg0 - A pointer to the buffer where the Platform token should be copied by
-           this function. The buffer must be big enough to hold the Platform
-           token.
+           this function. If the platform token does not completely fit in the
+           buffer, the function may return a piece of the token only.
 
-    arg1 - Contains the size (in bytes) of the buffer passed in arg0. The
-           function returns the platform token length in this parameter.
+    arg1 - Contains the size (in bytes) of the buffer passed in arg0. In
+           addition, this parameter is used by the function to return the size
+           of the platform token length hunk copied to the buffer.
 
     arg2 - A pointer to the buffer where the challenge object is stored.
 
     arg3 - The length of the challenge object in bytes. Possible values are 32,
-           48 and 64.
+           48 and 64. This argument must be zero for subsequent calls to
+           retrieve the remaining hunks of the token.
 
-The function returns 0 on success, -EINVAL on failure.
+    arg4 - Returns the remaining length of the token (in bytes) that is yet to
+           be returned in further calls.
+
+The function returns 0 on success, -EINVAL on failure and -EAGAIN if the
+resource associated with the platform token retrieval is busy.
 
 Function : plat_rmmd_get_cca_realm_attest_key() [mandatory when ENABLE_RME == 1]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2411,6 +2367,273 @@ RMM image and stores it in the area specified by manifest.
 
 When ENABLE_RME is disabled, this function is not used.
 
+Function : plat_rmm_mecid_key_update() [when ENABLE_RME == 1]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    Argument : uint16_t
+    Return   : int
+
+This function is invoked by BL31's RMMD when there is a request from the RMM
+monitor to update the tweak for the encryption key associated to a MECID.
+
+The first parameter (``uint16_t mecid``) contains the MECID for which the
+encryption key is to be updated.
+
+Return value is 0 upon success and -EFAULT otherwise.
+
+This function needs to be implemented by a platform if it enables RME.
+
+Function : plat_rmmd_el3_token_sign_push_req() [mandatory when RMMD_ENABLE_EL3_TOKEN_SIGN == 1]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    Arguments : const struct el3_token_sign_request *req
+    Return    : int
+
+Queue realm attestation token signing request from the RMM in EL3. The interface between
+the RMM and EL3 is modeled as a queue but the underlying implementation may be different,
+so long as the semantics of queuing and the error codes are used as defined below.
+
+See :ref:`el3_token_sign_request_struct` for definition of the request structure.
+
+Optional interface from the RMM-EL3 interface v0.4 onwards.
+
+The parameters of the functions are:
+      arg0: Pointer to the token sign request to be pushed to EL3.
+      The structure must be located in the RMM-EL3 shared
+      memory buffer and must be locked before use.
+
+Return codes:
+        - E_RMM_OK	On Success.
+        - E_RMM_INVAL   If the arguments are invalid.
+        - E_RMM_AGAIN   Indicates that the request was not queued since the
+	  queue in EL3 is full. This may also be returned for any reason
+	  or situation in the system, that prevents accepting the request
+	  from the RMM.
+        - E_RMM_UNK     If the SMC is not implemented or if interface
+	  version is < 0.4.
+
+Function : plat_rmmd_el3_token_sign_pull_resp() [mandatory when RMMD_ENABLE_EL3_TOKEN_SIGN == 1]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    Arguments : struct el3_token_sign_response *resp
+    Return    : int
+
+Populate the attestation signing response in the ``resp`` parameter. The interface between
+the RMM and EL3 is modeled as a queue for responses but the underlying implementation may
+be different, so long as the semantics of queuing and the error codes are used as defined
+below.
+
+See :ref:`el3_token_sign_response_struct` for definition of the response structure.
+
+Optional interface from the RMM-EL3 interface v0.4 onwards.
+
+The parameters of the functions are:
+          resp: Pointer to the token sign response to get from EL3.
+	  The structure must be located in the RMM-EL3 shared
+	  memory buffer and must be locked before use.
+
+Return:
+        - E_RMM_OK      On Success.
+        - E_RMM_INVAL   If the arguments are invalid.
+        - E_RMM_AGAIN   Indicates that a response is not ready yet.
+        - E_RMM_UNK     If the SMC is not implemented or if interface
+	  version is < 0.4.
+
+Function : plat_rmmd_el3_token_sign_get_rak_pub() [mandatory when RMMD_ENABLE_EL3_TOKEN_SIGN == 1]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    Argument : uintptr_t, size_t *, unsigned int
+    Return   : int
+
+This function returns the public portion of the realm attestation key which will be used to
+sign Realm attestation token. Typically, with delegated attestation, the private key is
+returned, however, there may be platforms where the private key bits are better protected
+in a platform specific manner such that the private key is not exposed. In such cases,
+the RMM will only cache the public key and forward any requests such as signing, that
+uses the private key to EL3. The API currently only supports P-384 ECC curve key.
+
+This is an optional interface from the RMM-EL3 interface v0.4 onwards.
+
+The parameters of the function are:
+
+    arg0 - A pointer to the buffer where the public key should be copied
+    by this function. The buffer must be big enough to hold the
+    attestation key.
+
+    arg1 - Contains the size (in bytes) of the buffer passed in arg0. The
+    function returns the attestation key length in this parameter.
+
+    arg2 - The type of the elliptic curve to which the requested attestation key
+    belongs.
+
+The function returns E_RMM_OK on success, RMM_E_INVAL if arguments are invalid and
+E_RMM_UNK if the SMC is not implemented or if interface version is < 0.4.
+
+Function : plat_rmmd_el3_ide_key_program() [mandatory when RMMD_ENABLE_IDE_KEY_PROG == 1]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    Argument : uint64_t, uint64_t, uint64_t, struct rp_ide_key_info_t *, uint64_t, uint64_t
+    Return   : int
+
+This function sets the key/IV info for an IDE stream at the Root port. The key is 256 bits
+and IV is 96 bits. The caller calls this SMC to program this key to the Rx and Tx ports
+and for each substream corresponding to a single keyset. The platform should validate
+the arguments `Ecam address` and `Rootport ID` before acting on it. The arguments `request ID`
+and `cookie` are to be ignored for blocking mode and are pass-through to the response for
+non-blocking mode.
+
+The platform needs to ensure proper exclusives are in place when accessed from multiple CPUs.
+Depending on the expected latency for IDE-KM interface, the platform should choose blocking
+or non-blocking semantics. More details about IDE Setup flow can be found
+in this `RFC <https://github.com/TF-RMM/tf-rmm/wiki/RFC:-EL3-RMM-IDE-KM-Interface>`_.
+
+The parameters of the function are:
+
+    arg0 - The ecam address, to access and configure PCI devices in a system.
+
+    arg1 - The rootport ID used to identify the PCIe rootport of a connected device.
+
+    arg2 - The IDE stream info associated with a physical device, this parameter packs the
+    the keyset, direction, substream and stream ID info.
+
+    arg3 - Structure with key and IV info.
+
+    arg4 - The request ID, is used in non-blocking mode only and can be ignored in blocking mode.
+
+    arg5 - The cookie variable, is used in non-blocking mode only and can be ignored in blocking
+    mode.
+
+The function returns E_RMM_OK on success, E_RMM_INVAL if arguments are invalid, E_RMM_FAULT
+if the key programming is unsuccesful, E_RMM_UNK for an unknown error, E_RMM_AGAIN returned
+only for non-blocking mode if the IDE-KM interface is busy or the request queue is full.
+E_RMM_INPROGRESS returned if the request is queued successfully and used only in non-blocking
+mode.
+
+Function : plat_rmmd_el3_ide_key_set_go() [mandatory when RMMD_ENABLE_IDE_KEY_PROG == 1]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    Argument : uint64_t, uint64_t, uint64_t, uint64_t, uint64_t
+    Return   : int
+
+This function activates the IDE stream at the Root Port once all the keys have been
+programmed. The platform should validate the arguments `Ecam address` and `Rootport ID`
+before acting on it. The arguments `request ID` and `cookie` are to be ignored for blocking
+mode and are pass-through to the response for non-blocking mode.
+
+The platform needs to ensure proper exclusives are in place when accessed from multiple CPUs.
+Depending on the expected latency for IDE-KM interface, the platform should choose blocking
+or non-blocking semantics. More details about IDE Setup flow can be found
+in this `RFC <https://github.com/TF-RMM/tf-rmm/wiki/RFC:-EL3-RMM-IDE-KM-Interface>`_.
+
+The parameters of the function are:
+
+    arg0 - The ecam address, to access and configure PCI devices in a system.
+
+    arg1 - The rootport ID used to identify the PCIe rootport of a connected device.
+
+    arg2 - The IDE stream info associated with a physical device, this parameter packs the
+    the keyset, direction, substream and stream ID info.
+
+    arg3 - The request ID, is used in non-blocking mode only and can be ignored in blocking mode.
+
+    arg4 - The cookie variable, is used in non-blocking mode only and can be ignored in blocking
+    mode.
+
+The function returns E_RMM_OK on success, E_RMM_INVAL if arguments are invalid, E_RMM_FAULT
+if the key programming is unsuccesful, E_RMM_UNK for an unknown error, E_RMM_AGAIN returned
+only for non-blocking mode if the IDE-KM interface is busy or the request queue is full.
+E_RMM_INPROGRESS returned if the request is queued successfully and used only in non-blocking
+mode.
+
+Function : plat_rmmd_el3_ide_key_set_stop() [mandatory when RMMD_ENABLE_IDE_KEY_PROG == 1]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    Argument : uint64_t, uint64_t, uint64_t, uint64_t, uint64_t
+    Return   : int
+
+This function stops the IDE stream and is used to tear down the IDE stream at Root Port.
+The platform should validate the arguments `Ecam address` and `Rootport ID` before acting
+on it. The arguments `request ID` and `cookie` are to be ignored for blocking
+mode and are pass-through to the response for non-blocking mode.
+
+The platform needs to ensure proper exclusives are in place when accessed from multiple CPUs.
+Depending on the expected latency for IDE-KM interface, the platform should choose blocking
+or non-blocking semantics. More details about IDE Setup flow can be found
+in this `RFC <https://github.com/TF-RMM/tf-rmm/wiki/RFC:-EL3-RMM-IDE-KM-Interface>`_.
+
+The parameters of the function are:
+
+    arg0 - The ecam address, to access and configure PCI devices in a system.
+
+    arg1 - The rootport ID used to identify the PCIe rootport of a connected device.
+
+    arg2 - The IDE stream info associated with a physical device, this parameter packs the
+    the keyset, direction, substream and stream ID info.
+
+    arg3 - The request ID, is used in non-blocking mode only and can be ignored in blocking mode.
+
+    arg4 - The cookie variable, is used in non-blocking mode only and can be ignored in blocking
+    mode.
+
+The function returns E_RMM_OK on success, E_RMM_INVAL if arguments are invalid, E_RMM_FAULT
+if the key programming is unsuccesful, E_RMM_UNK for an unknown error, E_RMM_AGAIN returned
+only for non-blocking mode if the IDE-KM interface is busy or the request queue is full.
+E_RMM_INPROGRESS returned if the request is queued successfully and used only in non-blocking
+mode.
+
+Function : plat_rmmd_el3_ide_km_pull_response() [mandatory when RMMD_ENABLE_IDE_KEY_PROG == 1]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    Argument : uint64_t, uint64_t, uint64_t *, uint64_t *, uint64_t *
+    Return   : int
+
+This function retrieves a reponse for any of the prior non-blocking IDE-KM requests. The
+caller has to identify the request and populate the accurate response. For blocking calls,
+this function always returns E_RMM_UNK.
+
+The platform needs to ensure proper exclusives are in place when accessed from multiple CPUs.
+Depending on the expected latency for IDE-KM interface, the platform should choose blocking
+or non-blocking semantics. More details about IDE Setup flow can be found
+in this `RFC <https://github.com/TF-RMM/tf-rmm/wiki/RFC:-EL3-RMM-IDE-KM-Interface>`_.
+
+The parameters of the function are:
+
+    arg0 - The ecam address, to access and configure PCI devices in a system.
+
+    arg1 - The rootport ID used to identify the PCIe rootport of a connected device.
+
+    arg2 - Retrieved response corresponding to the previous IDE_KM request.
+
+    arg3 - returns the passthrough request ID of the retrieved response.
+
+    arg4 - returns the passthrough cookie of the retrieved response.
+
+The function returns E_RMM_OK if response is retrieved successfully, E_RMM_INVAL if arguments
+to this function are invalid, E_RMM_UNK if response retrieval failed for an unknown error or
+IDE-KM interface is having blocking semantics, E_RMM_AGAIN if the response queue is empty.
+
+The `arg2` return parameter can return the following values:
+E_RMM_OK - The previous request was successful.
+E_RMM_FAULT - The previous request was not successful.
+E_RMM_INVAL - Arguments to previous request were incorrect.
+E_RMM_UNK - Previous request returned Unknown error.
+
 Function : bl31_plat_enable_mmu [optional]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -2444,7 +2667,7 @@ pointer authentication keys.
 The value should be obtained from a reliable source of randomness.
 
 This function is only needed if ARMv8.3 pointer authentication is used in the
-Trusted Firmware by building with ``BRANCH_PROTECTION`` option set to non-zero.
+Trusted Firmware by building with ``BRANCH_PROTECTION`` option set to 1, 2 or 3.
 
 Function : plat_get_syscnt_freq2() [mandatory]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2818,6 +3041,17 @@ power down state where as it could be either power down, retention or run state
 for the higher power domain levels depending on the result of state
 coordination. The generic code expects the handler to succeed.
 
+plat_psci_ops.pwr_domain_validate_suspend() [optional]
+......................................................
+
+This is an optional function that is only compiled into the build if the build
+option ``PSCI_OS_INIT_MODE`` is enabled.
+
+If implemented, this function allows the platform to perform platform specific
+validations based on hardware states. The generic code expects this function to
+return PSCI_E_SUCCESS on success, or either PSCI_E_DENIED or
+PSCI_E_INVALID_PARAMS as appropriate for any invalid requests.
+
 plat_psci_ops.pwr_domain_suspend_pwrdown_early() [optional]
 ...........................................................
 
@@ -2876,27 +3110,28 @@ allocated in a special area if it cannot fit in the platform's global static
 data, for example in DRAM. The Distributor can then be powered down using an
 implementation-defined sequence.
 
-If the build option ``PSCI_OS_INIT_MODE`` is enabled, the generic code expects
-the platform to return PSCI_E_SUCCESS on success, or either PSCI_E_DENIED or
-PSCI_E_INVALID_PARAMS as appropriate for any invalid requests.
-
-plat_psci_ops.pwr_domain_pwr_down_wfi()
+plat_psci_ops.pwr_domain_pwr_down()
 .......................................
 
 This is an optional function and, if implemented, is expected to perform
-platform specific actions including the ``wfi`` invocation which allows the
-CPU to powerdown. Since this function is invoked outside the PSCI locks,
-the actions performed in this hook must be local to the CPU or the platform
-must ensure that races between multiple CPUs cannot occur.
+platform specific actions before the CPU is powered down. Since this function is
+invoked outside the PSCI locks, the actions performed in this hook must be local
+to the CPU or the platform must ensure that races between multiple CPUs cannot
+occur.
 
 The ``target_state`` has a similar meaning as described in the ``pwr_domain_off()``
 operation and it encodes the platform coordinated target local power states for
-the CPU power domain and its parent power domain levels. This function must
-not return back to the caller (by calling wfi in an infinite loop to ensure
-some CPUs power down mitigations work properly).
+the CPU power domain and its parent power domain levels.
 
-If this function is not implemented by the platform, PSCI generic
-implementation invokes ``psci_power_down_wfi()`` for power down.
+It is preferred that this function returns. The caller will invoke
+``wfi()`` to powerdown the CPU, mitigate any powerdown errata,
+and handle any wakeups that may arise. Previously, this function did not return
+and instead called ``wfi`` (in an infinite loop) directly. This is still
+possible on platforms where this is guaranteed to be terminal, however, it is
+strongly discouraged going forward.
+
+Previously this function was called ``pwr_domain_pwr_down_wfi()`` and invoked
+``psci_power_down_wfi()`` (now removed).
 
 plat_psci_ops.pwr_domain_on_finish()
 ....................................
@@ -2948,14 +3183,16 @@ plat_psci_ops.system_off()
 
 This function is called by PSCI implementation in response to a ``SYSTEM_OFF``
 call. It performs the platform-specific system poweroff sequence after
-notifying the Secure Payload Dispatcher.
+notifying the Secure Payload Dispatcher. The caller will call ``wfi`` if this
+function returns, similar to `plat_psci_ops.pwr_domain_pwr_down()`_.
 
 plat_psci_ops.system_reset()
 ............................
 
 This function is called by PSCI implementation in response to a ``SYSTEM_RESET``
 call. It performs the platform-specific system reset sequence after
-notifying the Secure Payload Dispatcher.
+notifying the Secure Payload Dispatcher. The caller will call ``wfi`` if this
+function returns, similar to `plat_psci_ops.pwr_domain_pwr_down()`_.
 
 plat_psci_ops.validate_power_state()
 ....................................
@@ -3043,7 +3280,8 @@ reset information. If the ``reset_type`` is not supported, the
 function must return ``PSCI_E_NOT_SUPPORTED``. For architectural
 resets, all failures must return ``PSCI_E_INVALID_PARAMETERS``
 and vendor reset can return other PSCI error codes as defined
-in `PSCI`_. On success this function will not return.
+in `PSCI`_. If this function returns success, the caller will call
+``wfi`` similar to `plat_psci_ops.pwr_domain_pwr_down()`_.
 
 plat_psci_ops.write_mem_protect()
 .................................
@@ -3279,6 +3517,21 @@ Register* (``GICD_IGROUPRn``) and *Interrupt Group Modifier Register*
 (``GICD_IGRPMODRn``) is read to figure out whether the interrupt is configured
 as Group 0 secure interrupt, Group 1 secure interrupt or Group 1 NS interrupt.
 
+Registering a console
+---------------------
+
+Platforms will need to implement the TF-A console framework to register and use
+a console for visual data output in TF-A. These can be used for data output during
+the different stages of the firmware boot process and also for debugging purposes.
+
+The console framework can be used to output data on to a console using a number of
+TF-A supported UARTs. Multiple consoles can be registered at the same time with
+different output scopes (BOOT, RUNTIME, CRASH) so that data can be displayed on
+their respective consoles without unnecessary cluttering of a single console.
+
+Information for registering a console can be found in the :ref:`Console Framework` section
+of the :ref:`System Design` documentation.
+
 Common helper functions
 -----------------------
 Function : elx_panic()
@@ -3383,10 +3636,33 @@ This API is used by the crash reporting mechanism to force write of all buffered
 data on the designated crash console. It should only use general purpose
 registers x0 through x5 to do its work.
 
+Function : plat_setup_early_console [optional]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    Argument : void
+    Return   : void
+
+This API is used to setup the early console, it is required only if the flag
+``EARLY_CONSOLE`` is enabled.
+
 .. _External Abort handling and RAS Support:
 
 External Abort handling and RAS Support
 ---------------------------------------
+
+If any cores on the platform support powerdown abandon (check the "Core powerup
+and powerdown sequence" in their TRMs), then
+these functions should be able to handle being called with power domains off and
+after the powerdown ``wfi``. In other words it may run after a call to
+``pwr_domain_suspend()`` and before a call to ``pwr_domain_suspend_finish()``
+(and their power off counterparts).
+
+Should this not be desirable, or if there is no powerdown abandon support, then
+RAS errors should be masked by writing any relevant error records in any
+powerdown hooks to prevent deadlocks due to a RAS error after the point of no
+return. See the core's TRM for further information.
 
 Function : plat_ea_handler
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -3400,10 +3676,10 @@ Function : plat_ea_handler
     Argument : uint64_t
     Return   : void
 
-This function is invoked by the RAS framework for the platform to handle an
-External Abort received at EL3. The intention of the function is to attempt to
-resolve the cause of External Abort and return; if that's not possible, to
-initiate orderly shutdown of the system.
+This function is invoked by the runtime exception handling framework for the
+platform to handle an External Abort received at EL3. The intention of the
+function is to attempt to resolve the cause of External Abort and return;
+if that's not possible then an orderly shutdown of the system is initiated.
 
 The first parameter (``int ea_reason``) indicates the reason for External Abort.
 Its value is one of ``ERROR_EA_*`` constants defined in ``ea_handle.h``.
@@ -3418,13 +3694,8 @@ The third parameter (``void *cookie``) is unused for now. The fourth parameter
 (``uint64_t flags``) indicates the preempted security state. These parameters
 are received from the top-level exception handler.
 
-If ``RAS_FFH_SUPPORT`` is set to ``1``, the default implementation of this
-function iterates through RAS handlers registered by the platform. If any of the
-RAS handlers resolve the External Abort, no further action is taken.
-
-If ``RAS_FFH_SUPPORT`` is set to ``0``, or if none of the platform RAS handlers
-could resolve the External Abort, the default implementation prints an error
-message, and panics.
+This function must be implemented if a platform expects Firmware First handling
+of External Aborts.
 
 Function : plat_handle_uncontainable_ea
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -3530,7 +3801,10 @@ Function : plat_handle_impdef_trap
 This function is invoked by BL31's exception handler when there is a synchronous
 system register trap caused by access to the implementation defined registers.
 It allows platforms enabling ``IMPDEF_SYSREG_TRAP`` to emulate those system
-registers choosing to program bits of their choice.
+registers choosing to program bits of their choice. If using in combination with
+``ARCH_FEATURE_AVAILABILITY``, the macros
+{SCR,MDCR,CPTR}_PLAT_{BITS,IGNORED,FLIPPED} should be defined to report correct
+results.
 
 The first parameter (``uint64_t esr_el3``) contains the content of the ESR_EL3
 syndrome register, which encodes the instruction that was trapped.
@@ -3564,6 +3838,15 @@ build system.
    option of excluding the BL33 image in the ``fip`` image by defining this flag
    to ``no``. If any of the options ``EL3_PAYLOAD_BASE`` or ``PRELOADED_BL33_BASE``
    are used, this flag will be set to ``no`` automatically.
+
+-  **ARM_ARCH_MAJOR and ARM_ARCH_MINOR**
+   By default, ARM_ARCH_MAJOR.ARM_ARCH_MINOR is set to 8.0 in ``defaults.mk``,
+   if the platform makefile/build defines or uses the correct ARM_ARCH_MAJOR and
+   ARM_ARCH_MINOR then mandatory Architectural features available for that Arch
+   version will be enabled by default and any optional Arch feature supported by
+   the Architecture and available in TF-A can be enabled from platform specific
+   makefile. Look up to ``arch_features.mk`` for details pertaining to mandatory
+   and optional Arch specific features.
 
 Platform include paths
 ----------------------
@@ -3657,11 +3940,69 @@ by the drivers and callers, as the system does not yet provide a means of
 dynamically allocating memory. This may also have the affect of limiting the
 amount of open resources per driver.
 
+Measured Boot Platform Interface
+--------------------------------
+
+Enabling the MEASURED_BOOT flag adds extra platform requirements. Please refer
+to :ref:`Measured Boot Design` for more details.
+
+Live Firmware Activation Interface
+----------------------------------
+
+Function : plat_lfa_get_components()
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    Argument : plat_lfa_component_info_t **
+    Return   : int
+
+This platform API provides the list of LFA components available for activation.
+It populates a pointer to an array of ``plat_lfa_component_info_t`` structures,
+which contain information about each component (like UUID, ID, etc.). It returns
+0 on success, or a standard error code on failure.
+
+Function : is_plat_lfa_activation_pending()
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    Argument : uint32_t
+    Return   : bool
+
+This platform API checks if the specified LFA component, identified
+by its ``lfa_component_id``, is available for activation. It returns
+true if available, otherwise false.
+
+Function : plat_lfa_cancel()
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    Argument : uint32_t
+    Return   : int
+
+This platform API allows the platform to cancel an ongoing update or activation
+process for the specified ``lfa_component_id``. It returns 0 on success or
+a standard error code on failure.
+
+Function : plat_lfa_load_auth_image()
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    Argument : uint32_t
+    Return   : int
+
+The platform uses this API to load, authenticate and measure the component
+specified by ``lfa_component_id``. It should return 0 on success or appropriate
+error codes for load/authentication failures.
+
 --------------
 
-*Copyright (c) 2013-2023, Arm Limited and Contributors. All rights reserved.*
+*Copyright (c) 2013-2025, Arm Limited and Contributors. All rights reserved.*
 
-.. _PSCI: http://infocenter.arm.com/help/topic/com.arm.doc.den0022c/DEN0022C_Power_State_Coordination_Interface.pdf
+.. _PSCI: https://developer.arm.com/documentation/den0022/latest/
 .. _Arm Generic Interrupt Controller version 2.0 (GICv2): http://infocenter.arm.com/help/topic/com.arm.doc.ihi0048b/index.html
 .. _3.0 (GICv3): http://infocenter.arm.com/help/topic/com.arm.doc.ihi0069b/index.html
 .. _FreeBSD: https://www.freebsd.org

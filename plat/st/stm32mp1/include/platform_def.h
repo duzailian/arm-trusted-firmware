@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015-2022, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2015-2024, ARM Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -24,10 +24,6 @@
 #else
 #define PLATFORM_STACK_SIZE		0xC00
 #endif
-
-#define FIP_IMAGE_NAME			"fip"
-#define METADATA_PART_1			"metadata1"
-#define METADATA_PART_2			"metadata2"
 
 #define STM32MP_PRIMARY_CPU		U(0x0)
 #define STM32MP_SECONDARY_CPU		U(0x1)
@@ -80,20 +76,6 @@
  * BL33 specific defines.
  ******************************************************************************/
 #define BL33_BASE			STM32MP_BL33_BASE
-
-/*
- * Load address of BL33 for this platform port
- */
-#define PLAT_STM32MP_NS_IMAGE_OFFSET	BL33_BASE
-
-/* Needed by STM32CubeProgrammer support */
-#define DWL_BUFFER_SIZE			U(0x01000000)
-
-/*
- * SSBL offset in case it's stored in eMMC boot partition.
- * We can fix it to 256K because TF-A size can't be bigger than SRAM
- */
-#define PLAT_EMMC_BOOT_SSBL_OFFSET		U(0x40000)
 
 /*******************************************************************************
  * DTB specific defines.

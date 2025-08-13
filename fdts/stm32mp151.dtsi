@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
 /*
- * Copyright (c) 2017-2022, STMicroelectronics - All Rights Reserved
+ * Copyright (c) 2017-2024, STMicroelectronics - All Rights Reserved
  * Author: Ludovic Barre <ludovic.barre@st.com> for STMicroelectronics.
  */
 #include <dt-bindings/interrupt-controller/arm-gic.h>
@@ -324,9 +324,8 @@
 		sdmmc1: mmc@58005000 {
 			compatible = "st,stm32-sdmmc2", "arm,pl18x", "arm,primecell";
 			arm,primecell-periphid = <0x00253180>;
-			reg = <0x58005000 0x1000>, <0x58006000 0x1000>;
+			reg = <0x58005000 0x1000>;
 			interrupts = <GIC_SPI 49 IRQ_TYPE_LEVEL_HIGH>;
-			interrupt-names = "cmd_irq";
 			clocks = <&rcc SDMMC1_K>;
 			clock-names = "apb_pclk";
 			resets = <&rcc SDMMC1_R>;
@@ -339,9 +338,8 @@
 		sdmmc2: mmc@58007000 {
 			compatible = "st,stm32-sdmmc2", "arm,pl18x", "arm,primecell";
 			arm,primecell-periphid = <0x00253180>;
-			reg = <0x58007000 0x1000>, <0x58008000 0x1000>;
+			reg = <0x58007000 0x1000>;
 			interrupts = <GIC_SPI 124 IRQ_TYPE_LEVEL_HIGH>;
-			interrupt-names = "cmd_irq";
 			clocks = <&rcc SDMMC2_K>;
 			clock-names = "apb_pclk";
 			resets = <&rcc SDMMC2_R>;
@@ -460,25 +458,25 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 
-			cfg0_otp: cfg0_otp@0 {
+			cfg0_otp: cfg0-otp@0 {
 				reg = <0x0 0x1>;
 			};
-			part_number_otp: part_number_otp@4 {
+			part_number_otp: part-number-otp@4 {
 				reg = <0x4 0x1>;
 			};
-			monotonic_otp: monotonic_otp@10 {
+			monotonic_otp: monotonic-otp@10 {
 				reg = <0x10 0x4>;
 			};
-			nand_otp: nand_otp@24 {
+			nand_otp: nand-otp@24 {
 				reg = <0x24 0x4>;
 			};
-			uid_otp: uid_otp@34 {
+			uid_otp: uid-otp@34 {
 				reg = <0x34 0xc>;
 			};
-			package_otp: package_otp@40 {
+			package_otp: package-otp@40 {
 				reg = <0x40 0x4>;
 			};
-			hw2_otp: hw2_otp@48 {
+			hw2_otp: hw2-otp@48 {
 				reg = <0x48 0x4>;
 			};
 			ts_cal1: calib@5c {
@@ -487,10 +485,10 @@
 			ts_cal2: calib@5e {
 				reg = <0x5e 0x2>;
 			};
-			pkh_otp: pkh_otp@60 {
+			pkh_otp: pkh-otp@60 {
 				reg = <0x60 0x20>;
 			};
-			mac_addr: mac_addr@e4 {
+			ethernet_mac_address: mac@e4 {
 				reg = <0xe4 0x8>;
 				st,non-secure-otp;
 			};
@@ -523,7 +521,7 @@
 		};
 
 		tamp: tamp@5c00a000 {
-			compatible = "st,stm32-tamp", "simple-bus", "syscon", "simple-mfd";
+			compatible = "st,stm32-tamp", "syscon", "simple-mfd";
 			reg = <0x5c00a000 0x400>;
 			secure-interrupts = <GIC_SPI 197 IRQ_TYPE_LEVEL_HIGH>;
 			clocks = <&rcc RTCAPB>;
@@ -540,7 +538,6 @@
 			ranges = <0 0x50002000 0xa400>;
 			interrupt-parent = <&exti>;
 			st,syscfg = <&exti 0x60 0xff>;
-			pins-are-numbered;
 
 			gpioa: gpio@50002000 {
 				gpio-controller;
@@ -669,7 +666,6 @@
 			#size-cells = <1>;
 			compatible = "st,stm32mp157-z-pinctrl";
 			ranges = <0 0x54004000 0x400>;
-			pins-are-numbered;
 			interrupt-parent = <&exti>;
 			st,syscfg = <&exti 0x60 0xff>;
 

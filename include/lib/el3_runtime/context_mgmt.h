@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2022, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2013-2025, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -23,27 +23,31 @@ struct entry_point_info;
  ******************************************************************************/
 void cm_init(void);
 void *cm_get_context_by_index(unsigned int cpu_idx,
-			      unsigned int security_state);
+			      size_t security_state);
 void cm_set_context_by_index(unsigned int cpu_idx,
 			     void *context,
 			     unsigned int security_state);
-void *cm_get_context(uint32_t security_state);
+void *cm_get_context(size_t security_state);
 void cm_set_context(void *context, uint32_t security_state);
 void cm_init_my_context(const struct entry_point_info *ep);
-void cm_init_context_by_index(unsigned int cpu_idx,
-			      const struct entry_point_info *ep);
 void cm_setup_context(cpu_context_t *ctx, const struct entry_point_info *ep);
-void cm_prepare_el3_exit(uint32_t security_state);
+void cm_prepare_el3_exit(size_t security_state);
 void cm_prepare_el3_exit_ns(void);
 
 #ifdef __aarch64__
-#if CTX_INCLUDE_EL2_REGS
-void cm_el2_sysregs_context_save(uint32_t security_state);
-void cm_el2_sysregs_context_restore(uint32_t security_state);
+#if IMAGE_BL31
+void cm_manage_extensions_el3(unsigned int my_idx);
+void cm_manage_extensions_per_world(void);
 #endif
 
+#if (CTX_INCLUDE_EL2_REGS && IMAGE_BL31)
+void cm_el2_sysregs_context_save(uint32_t security_state);
+void cm_el2_sysregs_context_restore(uint32_t security_state);
+#else
 void cm_el1_sysregs_context_save(uint32_t security_state);
 void cm_el1_sysregs_context_restore(uint32_t security_state);
+#endif /* (CTX_INCLUDE_EL2_REGS && IMAGE_BL31) */
+
 void cm_set_elr_el3(uint32_t security_state, uintptr_t entrypoint);
 void cm_set_elr_spsr_el3(uint32_t security_state,
 			uintptr_t entrypoint, uint32_t spsr);
@@ -84,6 +88,7 @@ static inline void cm_set_next_context(void *context)
 #else
 void *cm_get_next_context(void);
 void cm_set_next_context(void *context);
+static inline void cm_manage_extensions_el3(unsigned int cpu_idx) {}
 #endif /* __aarch64__ */
 
 #endif /* CONTEXT_MGMT_H */

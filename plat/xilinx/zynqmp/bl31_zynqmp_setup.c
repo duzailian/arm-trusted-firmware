@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2013-2021, Arm Limited and Contributors. All rights reserved.
- * Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2013-2024, Arm Limited and Contributors. All rights reserved.
+ * Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -11,20 +11,22 @@
 #include <bl31/bl31.h>
 #include <common/bl_common.h>
 #include <common/debug.h>
-#include <drivers/arm/dcc.h>
-#include <drivers/console.h>
-#include <plat/arm/common/plat_arm.h>
-#include <plat/common/platform.h>
-#include <lib/mmio.h>
-
-#include <custom_svc.h>
-#include <plat_startup.h>
-#include <plat_private.h>
-#include <zynqmp_def.h>
-
 #include <common/fdt_fixup.h>
 #include <common/fdt_wrappers.h>
+#include <drivers/generic_delay_timer.h>
+#include <lib/mmio.h>
+#include <lib/xlat_tables/xlat_tables_v2.h>
 #include <libfdt.h>
+#include <plat/arm/common/plat_arm.h>
+#include <plat/common/platform.h>
+#include <plat_console.h>
+
+#include <custom_svc.h>
+#include <plat_fdt.h>
+#include <plat_private.h>
+#include <plat_startup.h>
+#include <zynqmp_def.h>
+
 
 static entry_point_info_t bl32_image_ep_info;
 static entry_point_info_t bl33_image_ep_info;
@@ -58,8 +60,28 @@ static inline void bl31_set_default_config(void)
 	bl32_image_ep_info.pc = BL32_BASE;
 	bl32_image_ep_info.spsr = arm_get_spsr_for_bl32_entry();
 	bl33_image_ep_info.pc = plat_get_ns_image_entrypoint();
-	bl33_image_ep_info.spsr = SPSR_64(MODE_EL2, MODE_SP_ELX,
+	bl33_image_ep_info.spsr = (uint32_t)SPSR_64(MODE_EL2, MODE_SP_ELX,
 					  DISABLE_ALL_EXCEPTIONS);
+}
+
+static inline uint64_t read_cntvct_el0(void)
+{
+	uint64_t val;
+
+	asm volatile("mrs %0, cntvct_el0" : "=r" (val));
+	return val;
+}
+
+static inline void reset_cntvct_el0_to_zero(void)
+{
+	asm volatile(
+		"mrs x0, cntpct_el0\n"   /* Read physical counter into x0 */
+		"neg x0, x0\n"           /* Negate it: x0 = -x0 */
+		"msr cntvoff_el2, x0\n"  /* Write offset to virtual counter */
+		:
+		:
+		: "x0", "memory"
+	);
 }
 
 /*
@@ -71,28 +93,29 @@ static inline void bl31_set_default_config(void)
 void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
 				u_register_t arg2, u_register_t arg3)
 {
-	uint64_t atf_handoff_addr;
+	(void)arg0;
+	(void)arg1;
+	(void)arg2;
+	(void)arg3;
+	uint64_t tfa_handoff_addr;
+	uint64_t counter_freq;
 
-	if (ZYNQMP_CONSOLE_IS(cadence) || (ZYNQMP_CONSOLE_IS(cadence1))) {
-		/* Register the console to provide early debug support */
-		static console_t bl31_boot_console;
-		(void)console_cdns_register(ZYNQMP_UART_BASE,
-					       zynqmp_get_uart_clk(),
-					       ZYNQMP_UART_BAUDRATE,
-					       &bl31_boot_console);
-		console_set_scope(&bl31_boot_console,
-				  CONSOLE_FLAG_RUNTIME | CONSOLE_FLAG_BOOT);
-	} else if (ZYNQMP_CONSOLE_IS(dcc)) {
-		/* Initialize the dcc console for debug */
-		int32_t rc = console_dcc_register();
-		if (rc == 0) {
-			panic();
-		}
-	} else {
-		ERROR("BL31: No console device found.\n");
+	/* Configure counter frequency */
+	counter_freq = read_cntfrq_el0();
+	if (counter_freq == ZYNQMP_DEFAULT_COUNTER_FREQ) {
+		write_cntfrq_el0(plat_get_syscnt_freq2());
 	}
+
+	generic_delay_timer_init();
+
+	setup_console();
+
 	/* Initialize the platform config for future decision making */
 	zynqmp_config_setup();
+
+	INFO("Counter TICK 0x%lx\n", read_cntvct_el0());
+	reset_cntvct_el0_to_zero();
+	INFO("Counter TICK after reset 0x%lx\n", read_cntvct_el0());
 
 	/*
 	 * Do initial security configuration to allow DRAM/device access. On
@@ -107,23 +130,23 @@ void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
 	SET_PARAM_HEAD(&bl33_image_ep_info, PARAM_EP, VERSION_1, 0);
 	SET_SECURITY_STATE(bl33_image_ep_info.h.attr, NON_SECURE);
 
-	atf_handoff_addr = mmio_read_32(PMU_GLOBAL_GEN_STORAGE6);
+	tfa_handoff_addr = (uint64_t)mmio_read_32(PMU_GLOBAL_GEN_STORAGE6);
 
 	if (zynqmp_get_bootmode() == ZYNQMP_BOOTMODE_JTAG) {
 		bl31_set_default_config();
 	} else {
-		/* use parameters from FSBL */
-		enum fsbl_handoff ret = fsbl_atf_handover(&bl32_image_ep_info,
+		/* use parameters from XBL */
+		enum xbl_handoff ret = xbl_handover(&bl32_image_ep_info,
 							  &bl33_image_ep_info,
-							  atf_handoff_addr);
-		if (ret != FSBL_HANDOFF_SUCCESS) {
+							  tfa_handoff_addr);
+		if (ret != XBL_HANDOFF_SUCCESS) {
 			panic();
 		}
 	}
-	if (bl32_image_ep_info.pc != 0) {
+	if (bl32_image_ep_info.pc != 0U) {
 		NOTICE("BL31: Secure code at 0x%lx\n", bl32_image_ep_info.pc);
 	}
-	if (bl33_image_ep_info.pc != 0) {
+	if (bl33_image_ep_info.pc != 0U) {
 		NOTICE("BL31: Non secure code at 0x%lx\n", bl33_image_ep_info.pc);
 	}
 
@@ -132,21 +155,29 @@ void bl31_early_platform_setup2(u_register_t arg0, u_register_t arg1,
 }
 
 #if ZYNQMP_WDT_RESTART
-static interrupt_type_handler_t type_el3_interrupt_table[MAX_INTR_EL3];
+static zynmp_intr_info_type_el3_t type_el3_interrupt_table[MAX_INTR_EL3];
 
 int request_intr_type_el3(uint32_t id, interrupt_type_handler_t handler)
 {
+	static uint32_t index;
+	uint32_t i;
+
 	/* Validate 'handler' and 'id' parameters */
-	if (!handler || id >= MAX_INTR_EL3) {
+	if (!handler || index >= MAX_INTR_EL3) {
 		return -EINVAL;
 	}
 
 	/* Check if a handler has already been registered */
-	if (type_el3_interrupt_table[id]) {
-		return -EALREADY;
+	for (i = 0; i < index; i++) {
+		if (id == type_el3_interrupt_table[i].id) {
+			return -EALREADY;
+		}
 	}
 
-	type_el3_interrupt_table[id] = handler;
+	type_el3_interrupt_table[index].id = id;
+	type_el3_interrupt_table[index].handler = handler;
+
+	index++;
 
 	return 0;
 }
@@ -155,67 +186,28 @@ static uint64_t rdo_el3_interrupt_handler(uint32_t id, uint32_t flags,
 					  void *handle, void *cookie)
 {
 	uint32_t intr_id;
-	interrupt_type_handler_t handler;
+	uint32_t i;
+	interrupt_type_handler_t handler = NULL;
 
 	intr_id = plat_ic_get_pending_interrupt_id();
-	handler = type_el3_interrupt_table[intr_id];
+
+	for (i = 0; i < MAX_INTR_EL3; i++) {
+		if (intr_id == type_el3_interrupt_table[i].id) {
+			handler = type_el3_interrupt_table[i].handler;
+		}
+	}
+
 	if (handler != NULL) {
-		handler(intr_id, flags, handle, cookie);
+		return handler(intr_id, flags, handle, cookie);
 	}
 
 	return 0;
 }
 #endif
 
-#if (defined(XILINX_OF_BOARD_DTB_ADDR) && !IS_TFA_IN_OCM(BL31_BASE))
-static void prepare_dtb(void)
-{
-	void *dtb = (void *)XILINX_OF_BOARD_DTB_ADDR;
-	int ret;
-
-	/* Return if no device tree is detected */
-	if (fdt_check_header(dtb) != 0) {
-		NOTICE("Can't read DT at %p\n", dtb);
-		return;
-	}
-
-	ret = fdt_open_into(dtb, dtb, XILINX_OF_BOARD_DTB_MAX_SIZE);
-	if (ret < 0) {
-		ERROR("Invalid Device Tree at %p: error %d\n", dtb, ret);
-		return;
-	}
-
-	if (dt_add_psci_node(dtb)) {
-		ERROR("Failed to add PSCI Device Tree node\n");
-		return;
-	}
-
-	if (dt_add_psci_cpu_enable_methods(dtb)) {
-		ERROR("Failed to add PSCI cpu enable methods in Device Tree\n");
-		return;
-	}
-
-	/* Reserve memory used by Trusted Firmware. */
-	if (fdt_add_reserved_memory(dtb, "tf-a", BL31_BASE,
-				    BL31_LIMIT - BL31_BASE + 1)) {
-		WARN("Failed to add reserved memory nodes for BL31 to DT.\n");
-	}
-
-	ret = fdt_pack(dtb);
-	if (ret < 0) {
-		ERROR("Failed to pack Device Tree at %p: error %d\n", dtb, ret);
-	}
-
-	clean_dcache_range((uintptr_t)dtb, fdt_blob_size(dtb));
-	INFO("Changed device tree to advertise PSCI and reserved memories.\n");
-}
-#endif
-
 void bl31_platform_setup(void)
 {
-#if (defined(XILINX_OF_BOARD_DTB_ADDR) && !IS_TFA_IN_OCM(BL31_BASE))
 	prepare_dtb();
-#endif
 
 	/* Initialize the gic cpu and distributor interfaces */
 	plat_arm_gic_driver_init();
@@ -266,6 +258,6 @@ void bl31_plat_arch_setup(void)
 
 	custom_mmap_add();
 
-	setup_page_tables(bl_regions, plat_arm_get_mmap());
-	enable_mmu_el3(0);
+	setup_page_tables(bl_regions, plat_get_mmap());
+	enable_mmu(0);
 }

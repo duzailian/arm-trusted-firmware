@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2020, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2017-2025, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -112,7 +112,7 @@ void __init init_xlat_tables(void)
 
 int xlat_get_mem_attributes(uintptr_t base_va, uint32_t *attr)
 {
-	return xlat_get_mem_attributes_ctx(&tf_xlat_ctx, base_va, attr);
+	return xlat_get_mem_attributes_ctx(&tf_xlat_ctx, base_va, attr, NULL);
 }
 
 int xlat_change_mem_attributes(uintptr_t base_va, size_t size, uint32_t attr)
@@ -200,7 +200,7 @@ int xlat_make_tables_readonly(void)
  * region. Therefore, in this case we have to assume that the whole address
  * space size might be mapped.
  */
-#ifdef PLAT_XLAT_TABLES_DYNAMIC
+#if PLAT_XLAT_TABLES_DYNAMIC
 #define MAX_PHYS_ADDR	tf_xlat_ctx.pa_max_address
 #else
 #define MAX_PHYS_ADDR	tf_xlat_ctx.max_pa

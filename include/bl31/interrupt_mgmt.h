@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2022, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2014-2024, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -16,7 +16,8 @@
 #define INTR_TYPE_S_EL1			U(0)
 #define INTR_TYPE_EL3			U(1)
 #define INTR_TYPE_NS			U(2)
-#define MAX_INTR_TYPES			U(3)
+#define INTR_TYPE_RL			U(3)
+#define MAX_INTR_TYPES			U(4)
 #define INTR_TYPE_INVAL			MAX_INTR_TYPES
 
 /* Interrupt routing modes */
@@ -82,6 +83,7 @@
 #ifndef __ASSEMBLER__
 
 #include <errno.h>
+#include <stddef.h>
 #include <stdint.h>
 
 /*******************************************************************************
@@ -107,10 +109,10 @@ static inline int32_t validate_ns_interrupt_rm(uint32_t x)
 
 static inline int32_t validate_el3_interrupt_rm(uint32_t x)
 {
-#if EL3_EXCEPTION_HANDLING && !(defined(SPD_spmd) && (SPMD_SPM_AT_SEL2 == 1))
+#if EL3_EXCEPTION_HANDLING && SPM_MM
 	/*
 	 * With EL3 exception handling, EL3 interrupts are always routed to EL3
-	 * from both Secure and Non-secure, when the SPMC does not live in S-EL2.
+	 * from Non-secure and from secure only if SPM_MM is present.
 	 * Therefore INTR_EL3_VALID_RM1 is the only valid routing model.
 	 */
 	if (x == INTR_EL3_VALID_RM1)
@@ -142,7 +144,7 @@ typedef uint64_t (*interrupt_type_handler_t)(uint32_t id,
 /*******************************************************************************
  * Function & variable prototypes
  ******************************************************************************/
-u_register_t get_scr_el3_from_routing_model(uint32_t security_state);
+u_register_t get_scr_el3_from_routing_model(size_t security_state);
 int32_t set_routing_model(uint32_t type, uint32_t flags);
 int32_t register_interrupt_type_handler(uint32_t type,
 					interrupt_type_handler_t handler,

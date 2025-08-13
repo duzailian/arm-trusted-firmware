@@ -1,11 +1,12 @@
 /*
- * Copyright (c) 2022, ARM Limited and Contributors. All rights reserved.
+ * Copyright (c) 2022-2025, ARM Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
 #include <assert.h>
 #include <errno.h>
+#include <stdio.h>
 
 #include <arch_helpers.h>
 #include <bl31/bl31.h>
@@ -29,6 +30,17 @@
 #include "spmc_shared_mem.h"
 
 #include <platform_def.h>
+
+/* FFA_MEM_PERM_* helpers */
+#define FFA_MEM_PERM_MASK		U(7)
+#define FFA_MEM_PERM_DATA_MASK		U(3)
+#define FFA_MEM_PERM_DATA_SHIFT		U(0)
+#define FFA_MEM_PERM_DATA_NA		U(0)
+#define FFA_MEM_PERM_DATA_RW		U(1)
+#define FFA_MEM_PERM_DATA_RES		U(2)
+#define FFA_MEM_PERM_DATA_RO		U(3)
+#define FFA_MEM_PERM_INST_EXEC          (U(0) << 2)
+#define FFA_MEM_PERM_INST_NON_EXEC      (U(1) << 2)
 
 /* Declare the maximum number of SPs and El3 LPs. */
 #define MAX_SP_LP_PARTITIONS SECURE_PARTITION_COUNT + MAX_EL3_LP_DESCS_COUNT
@@ -205,12 +217,13 @@ static uint64_t spmc_smc_return(uint32_t smc_fid,
 				void *handle,
 				void *cookie,
 				uint64_t flags,
-				uint16_t dst_id)
+				uint16_t dst_id,
+				uint32_t sp_ffa_version)
 {
 	/* If the destination is in the normal world always go via the SPMD. */
 	if (ffa_is_normal_world_id(dst_id)) {
 		return spmd_smc_handler(smc_fid, x1, x2, x3, x4,
-					cookie, handle, flags);
+					cookie, handle, flags, sp_ffa_version);
 	}
 	/*
 	 * If the caller is secure and we want to return to the secure world,
@@ -222,7 +235,7 @@ static uint64_t spmc_smc_return(uint32_t smc_fid,
 	/* If we originated in the normal world then switch contexts. */
 	else if (!secure_origin && ffa_is_secure_world_id(dst_id)) {
 		return spmd_smc_switch_state(smc_fid, secure_origin, x1, x2,
-					     x3, x4, handle);
+					     x3, x4, handle, flags, sp_ffa_version);
 	} else {
 		/* Unknown State. */
 		panic();
@@ -260,6 +273,94 @@ static inline bool direct_msg_validate_arg2(uint64_t x2)
 }
 
 /*******************************************************************************
+ * Helper function to validate the destination ID of a direct response.
+ ******************************************************************************/
+static bool direct_msg_validate_dst_id(uint16_t dst_id)
+{
+	struct secure_partition_desc *sp;
+
+	/* Check if we're targeting a normal world partition. */
+	if (ffa_is_normal_world_id(dst_id)) {
+		return true;
+	}
+
+	/* Or directed to the SPMC itself.*/
+	if (dst_id == FFA_SPMC_ID) {
+		return true;
+	}
+
+	/* Otherwise ensure the SP exists. */
+	sp = spmc_get_sp_ctx(dst_id);
+	if (sp != NULL) {
+		return true;
+	}
+
+	return false;
+}
+
+/*******************************************************************************
+ * Helper function to validate the response from a Logical Partition.
+ ******************************************************************************/
+static bool direct_msg_validate_lp_resp(uint16_t origin_id, uint16_t lp_id,
+					void *handle)
+{
+	/* Retrieve populated Direct Response Arguments. */
+	uint64_t smc_fid = SMC_GET_GP(handle, CTX_GPREG_X0);
+	uint64_t x1 = SMC_GET_GP(handle, CTX_GPREG_X1);
+	uint64_t x2 = SMC_GET_GP(handle, CTX_GPREG_X2);
+	uint16_t src_id = ffa_endpoint_source(x1);
+	uint16_t dst_id = ffa_endpoint_destination(x1);
+
+	if (src_id != lp_id) {
+		ERROR("Invalid EL3 LP source ID (0x%x).\n", src_id);
+		return false;
+	}
+
+	/*
+	 * Check the destination ID is valid and ensure the LP is responding to
+	 * the original request.
+	 */
+	if ((!direct_msg_validate_dst_id(dst_id)) || (dst_id != origin_id)) {
+		ERROR("Invalid EL3 LP destination ID (0x%x).\n", dst_id);
+		return false;
+	}
+
+	if ((smc_fid != FFA_MSG_SEND_DIRECT_RESP2_SMC64) &&
+			!direct_msg_validate_arg2(x2)) {
+		ERROR("Invalid EL3 LP message encoding.\n");
+		return false;
+	}
+	return true;
+}
+
+/*******************************************************************************
+ * Helper function to check that partition can receive direct msg or not.
+ ******************************************************************************/
+static bool direct_msg_receivable(uint32_t properties, uint16_t dir_req_fnum)
+{
+	if ((dir_req_fnum == FFA_FNUM_MSG_SEND_DIRECT_REQ &&
+			((properties & FFA_PARTITION_DIRECT_REQ_RECV) == 0U)) ||
+			(dir_req_fnum == FFA_FNUM_MSG_SEND_DIRECT_REQ2 &&
+			((properties & FFA_PARTITION_DIRECT_REQ2_RECV) == 0U))) {
+		return false;
+	}
+
+	return true;
+}
+
+/*******************************************************************************
+ * Helper function to obtain the FF-A version of the calling partition.
+ ******************************************************************************/
+uint32_t get_partition_ffa_version(bool secure_origin)
+{
+	if (secure_origin) {
+		return spmc_get_current_sp_ctx()->ffa_version;
+	} else {
+		return spmc_get_hyp_ctx()->ffa_version;
+	}
+}
+
+/*******************************************************************************
  * Handle direct request messages and route to the appropriate destination.
  ******************************************************************************/
 static uint64_t direct_req_smc_handler(uint32_t smc_fid,
@@ -272,15 +373,37 @@ static uint64_t direct_req_smc_handler(uint32_t smc_fid,
 				       void *handle,
 				       uint64_t flags)
 {
+	uint16_t src_id = ffa_endpoint_source(x1);
 	uint16_t dst_id = ffa_endpoint_destination(x1);
+	uint16_t dir_req_funcid;
 	struct el3_lp_desc *el3_lp_descs;
 	struct secure_partition_desc *sp;
 	unsigned int idx;
+	uint32_t ffa_version = get_partition_ffa_version(secure_origin);
 
-	/* Check if arg2 has been populated correctly based on message type. */
-	if (!direct_msg_validate_arg2(x2)) {
+	dir_req_funcid = (smc_fid != FFA_MSG_SEND_DIRECT_REQ2_SMC64) ?
+		FFA_FNUM_MSG_SEND_DIRECT_REQ : FFA_FNUM_MSG_SEND_DIRECT_REQ2;
+
+	if ((dir_req_funcid == FFA_FNUM_MSG_SEND_DIRECT_REQ2) &&
+			ffa_version < MAKE_FFA_VERSION(U(1), U(2))) {
+		return spmc_ffa_error_return(handle, FFA_ERROR_NOT_SUPPORTED);
+	}
+
+	/*
+	 * Sanity check for DIRECT_REQ:
+	 * Check if arg2 has been populated correctly based on message type
+	 */
+	if ((dir_req_funcid == FFA_FNUM_MSG_SEND_DIRECT_REQ) &&
+			!direct_msg_validate_arg2(x2)) {
+		return spmc_ffa_error_return(handle, FFA_ERROR_INVALID_PARAMETER);
+	}
+
+	/* Validate Sender is either the current SP or from the normal world. */
+	if ((secure_origin && src_id != spmc_get_current_sp_ctx()->sp_id) ||
+		(!secure_origin && !ffa_is_normal_world_id(src_id))) {
+		ERROR("Invalid direct request source ID (0x%x).\n", src_id);
 		return spmc_ffa_error_return(handle,
-					     FFA_ERROR_INVALID_PARAMETER);
+					FFA_ERROR_INVALID_PARAMETER);
 	}
 
 	el3_lp_descs = get_el3_lp_array();
@@ -288,9 +411,20 @@ static uint64_t direct_req_smc_handler(uint32_t smc_fid,
 	/* Check if the request is destined for a Logical Partition. */
 	for (unsigned int i = 0U; i < MAX_EL3_LP_DESCS_COUNT; i++) {
 		if (el3_lp_descs[i].sp_id == dst_id) {
-			return el3_lp_descs[i].direct_req(
-					smc_fid, secure_origin, x1, x2, x3, x4,
-					cookie, handle, flags);
+			if (!direct_msg_receivable(el3_lp_descs[i].properties, dir_req_funcid)) {
+				return spmc_ffa_error_return(handle, FFA_ERROR_DENIED);
+			}
+
+			uint64_t ret = el3_lp_descs[i].direct_req(
+						smc_fid, secure_origin, x1, x2,
+						x3, x4, cookie, handle, flags);
+			if (!direct_msg_validate_lp_resp(src_id, dst_id,
+							 handle)) {
+				panic();
+			}
+
+			/* Message checks out. */
+			return ret;
 		}
 	}
 
@@ -315,6 +449,15 @@ static uint64_t direct_req_smc_handler(uint32_t smc_fid,
 					     FFA_ERROR_INVALID_PARAMETER);
 	}
 
+	if (!direct_msg_receivable(sp->properties, dir_req_funcid)) {
+		return spmc_ffa_error_return(handle, FFA_ERROR_DENIED);
+	}
+
+	/* Protect the runtime state of a UP S-EL0 SP with a lock. */
+	if (sp->runtime_el == S_EL0) {
+		spin_lock(&sp->rt_state_lock);
+	}
+
 	/*
 	 * Check that the target execution context is in a waiting state before
 	 * forwarding the direct request to it.
@@ -323,6 +466,11 @@ static uint64_t direct_req_smc_handler(uint32_t smc_fid,
 	if (sp->ec[idx].rt_state != RT_STATE_WAITING) {
 		VERBOSE("SP context on core%u is not waiting (%u).\n",
 			idx, sp->ec[idx].rt_model);
+
+		if (sp->runtime_el == S_EL0) {
+			spin_unlock(&sp->rt_state_lock);
+		}
+
 		return spmc_ffa_error_return(handle, FFA_ERROR_BUSY);
 	}
 
@@ -332,8 +480,15 @@ static uint64_t direct_req_smc_handler(uint32_t smc_fid,
 	 */
 	sp->ec[idx].rt_state = RT_STATE_RUNNING;
 	sp->ec[idx].rt_model = RT_MODEL_DIR_REQ;
+	sp->ec[idx].dir_req_origin_id = src_id;
+	sp->ec[idx].dir_req_funcid = dir_req_funcid;
+
+	if (sp->runtime_el == S_EL0) {
+		spin_unlock(&sp->rt_state_lock);
+	}
+
 	return spmc_smc_return(smc_fid, secure_origin, x1, x2, x3, x4,
-			       handle, cookie, flags, dst_id);
+			       handle, cookie, flags, dst_id, sp->ffa_version);
 }
 
 /*******************************************************************************
@@ -350,8 +505,12 @@ static uint64_t direct_resp_smc_handler(uint32_t smc_fid,
 					uint64_t flags)
 {
 	uint16_t dst_id = ffa_endpoint_destination(x1);
+	uint16_t dir_req_funcid;
 	struct secure_partition_desc *sp;
 	unsigned int idx;
+
+	dir_req_funcid = (smc_fid != FFA_MSG_SEND_DIRECT_RESP2_SMC64) ?
+		FFA_FNUM_MSG_SEND_DIRECT_REQ : FFA_FNUM_MSG_SEND_DIRECT_REQ2;
 
 	/* Check if arg2 has been populated correctly based on message type. */
 	if (!direct_msg_validate_arg2(x2)) {
@@ -370,7 +529,7 @@ static uint64_t direct_resp_smc_handler(uint32_t smc_fid,
 	 * Check that the response is either targeted to the Normal world or the
 	 * SPMC e.g. a PM response.
 	 */
-	if ((dst_id != FFA_SPMC_ID) && ffa_is_secure_world_id(dst_id)) {
+	if (!direct_msg_validate_dst_id(dst_id)) {
 		VERBOSE("Direct response to invalid partition ID (0x%x).\n",
 			dst_id);
 		return spmc_ffa_error_return(handle,
@@ -386,6 +545,10 @@ static uint64_t direct_resp_smc_handler(uint32_t smc_fid,
 					     FFA_ERROR_INVALID_PARAMETER);
 	}
 
+	if (sp->runtime_el == S_EL0) {
+		spin_lock(&sp->rt_state_lock);
+	}
+
 	/* Sanity check state is being tracked correctly in the SPMC. */
 	idx = get_ec_index(sp);
 	assert(sp->ec[idx].rt_state == RT_STATE_RUNNING);
@@ -394,11 +557,42 @@ static uint64_t direct_resp_smc_handler(uint32_t smc_fid,
 	if (sp->ec[idx].rt_model != RT_MODEL_DIR_REQ) {
 		VERBOSE("SP context on core%u not handling direct req (%u).\n",
 			idx, sp->ec[idx].rt_model);
+		if (sp->runtime_el == S_EL0) {
+			spin_unlock(&sp->rt_state_lock);
+		}
+		return spmc_ffa_error_return(handle, FFA_ERROR_DENIED);
+	}
+
+	if (dir_req_funcid != sp->ec[idx].dir_req_funcid) {
+		WARN("Unmatched direct req/resp func id. req:%x, resp:%x on core%u.\n",
+		     sp->ec[idx].dir_req_funcid, (smc_fid & FUNCID_NUM_MASK), idx);
+		if (sp->runtime_el == S_EL0) {
+			spin_unlock(&sp->rt_state_lock);
+		}
+		return spmc_ffa_error_return(handle, FFA_ERROR_DENIED);
+	}
+
+	if (sp->ec[idx].dir_req_origin_id != dst_id) {
+		WARN("Invalid direct resp partition ID 0x%x != 0x%x on core%u.\n",
+		     dst_id, sp->ec[idx].dir_req_origin_id, idx);
+		if (sp->runtime_el == S_EL0) {
+			spin_unlock(&sp->rt_state_lock);
+		}
 		return spmc_ffa_error_return(handle, FFA_ERROR_DENIED);
 	}
 
 	/* Update the state of the SP execution context. */
 	sp->ec[idx].rt_state = RT_STATE_WAITING;
+
+	/* Clear the ongoing direct request ID. */
+	sp->ec[idx].dir_req_origin_id = INV_SP_ID;
+
+	/* Clear the ongoing direct request message version. */
+	sp->ec[idx].dir_req_funcid = 0U;
+
+	if (sp->runtime_el == S_EL0) {
+		spin_unlock(&sp->rt_state_lock);
+	}
 
 	/*
 	 * If the receiver is not the SPMC then forward the response to the
@@ -411,7 +605,7 @@ static uint64_t direct_resp_smc_handler(uint32_t smc_fid,
 	}
 
 	return spmc_smc_return(smc_fid, secure_origin, x1, x2, x3, x4,
-			       handle, cookie, flags, dst_id);
+			       handle, cookie, flags, dst_id, sp->ffa_version);
 }
 
 /*******************************************************************************
@@ -451,9 +645,15 @@ static uint64_t msg_wait_handler(uint32_t smc_fid,
 	 * Get the execution context of the SP that invoked FFA_MSG_WAIT.
 	 */
 	idx = get_ec_index(sp);
+	if (sp->runtime_el == S_EL0) {
+		spin_lock(&sp->rt_state_lock);
+	}
 
 	/* Ensure SP execution context was in the right runtime model. */
 	if (sp->ec[idx].rt_model == RT_MODEL_DIR_REQ) {
+		if (sp->runtime_el == S_EL0) {
+			spin_unlock(&sp->rt_state_lock);
+		}
 		return spmc_ffa_error_return(handle, FFA_ERROR_DENIED);
 	}
 
@@ -465,6 +665,9 @@ static uint64_t msg_wait_handler(uint32_t smc_fid,
 	 * state is updated after the exit.
 	 */
 	if (sp->ec[idx].rt_model == RT_MODEL_INIT) {
+		if (sp->runtime_el == S_EL0) {
+			spin_unlock(&sp->rt_state_lock);
+		}
 		spmc_sp_synchronous_exit(&sp->ec[idx], x4);
 		/* Should not get here */
 		panic();
@@ -475,19 +678,24 @@ static uint64_t msg_wait_handler(uint32_t smc_fid,
 
 	/* Resume normal world if a secure interrupt was handled. */
 	if (sp->ec[idx].rt_model == RT_MODEL_INTR) {
-		/* FFA_MSG_WAIT can only be called from the secure world. */
-		unsigned int secure_state_in = SECURE;
-		unsigned int secure_state_out = NON_SECURE;
+		if (sp->runtime_el == S_EL0) {
+			spin_unlock(&sp->rt_state_lock);
+		}
 
-		cm_el1_sysregs_context_save(secure_state_in);
-		cm_el1_sysregs_context_restore(secure_state_out);
-		cm_set_next_eret_context(secure_state_out);
-		SMC_RET0(cm_get_context(secure_state_out));
+		return spmd_smc_switch_state(FFA_NORMAL_WORLD_RESUME, secure_origin,
+					     FFA_PARAM_MBZ, FFA_PARAM_MBZ,
+					     FFA_PARAM_MBZ, FFA_PARAM_MBZ,
+					     handle, flags, sp->ffa_version);
+	}
+
+	/* Protect the runtime state of a S-EL0 SP with a lock. */
+	if (sp->runtime_el == S_EL0) {
+		spin_unlock(&sp->rt_state_lock);
 	}
 
 	/* Forward the response to the Normal world. */
 	return spmc_smc_return(smc_fid, secure_origin, x1, x2, x3, x4,
-			       handle, cookie, flags, FFA_NWD_ID);
+			       handle, cookie, flags, FFA_NWD_ID, sp->ffa_version);
 }
 
 static uint64_t ffa_error_handler(uint32_t smc_fid,
@@ -502,6 +710,8 @@ static uint64_t ffa_error_handler(uint32_t smc_fid,
 {
 	struct secure_partition_desc *sp;
 	unsigned int idx;
+	uint16_t dst_id = ffa_endpoint_destination(x1);
+	bool cancel_dir_req = false;
 
 	/* Check that the response did not originate from the Normal world. */
 	if (!secure_origin) {
@@ -527,6 +737,32 @@ static uint64_t ffa_error_handler(uint32_t smc_fid,
 		spmc_sp_synchronous_exit(&sp->ec[idx], x2);
 		/* Should not get here. */
 		panic();
+	}
+
+	if (sp->runtime_el == S_EL0) {
+		spin_lock(&sp->rt_state_lock);
+	}
+
+	if (sp->ec[idx].rt_state == RT_STATE_RUNNING &&
+			sp->ec[idx].rt_model == RT_MODEL_DIR_REQ) {
+		sp->ec[idx].rt_state = RT_STATE_WAITING;
+		sp->ec[idx].dir_req_origin_id = INV_SP_ID;
+		sp->ec[idx].dir_req_funcid = 0x00;
+		cancel_dir_req = true;
+	}
+
+	if (sp->runtime_el == S_EL0) {
+		spin_unlock(&sp->rt_state_lock);
+	}
+
+	if (cancel_dir_req) {
+		if (dst_id == FFA_SPMC_ID) {
+			spmc_sp_synchronous_exit(&sp->ec[idx], x4);
+			/* Should not get here. */
+			panic();
+		} else
+			return spmc_smc_return(smc_fid, secure_origin, x1, x2, x3, x4,
+					       handle, cookie, flags, dst_id, sp->ffa_version);
 	}
 
 	return spmc_ffa_error_return(handle, FFA_ERROR_NOT_SUPPORTED);
@@ -571,18 +807,6 @@ static uint64_t ffa_version_handler(uint32_t smc_fid,
 
 	SMC_RET1(handle, MAKE_FFA_VERSION(FFA_VERSION_MAJOR,
 					  FFA_VERSION_MINOR));
-}
-
-/*******************************************************************************
- * Helper function to obtain the FF-A version of the calling partition.
- ******************************************************************************/
-uint32_t get_partition_ffa_version(bool secure_origin)
-{
-	if (secure_origin) {
-		return spmc_get_current_sp_ctx()->ffa_version;
-	} else {
-		return spmc_get_hyp_ctx()->ffa_version;
-	}
 }
 
 static uint64_t rxtx_map_handler(uint32_t smc_fid,
@@ -1122,6 +1346,7 @@ static uint64_t ffa_features_handler(uint32_t smc_fid,
 	case FFA_RX_RELEASE:
 	case FFA_MSG_SEND_DIRECT_REQ_SMC32:
 	case FFA_MSG_SEND_DIRECT_REQ_SMC64:
+	case FFA_MSG_SEND_DIRECT_REQ2_SMC64:
 	case FFA_PARTITION_INFO_GET:
 	case FFA_RXTX_MAP_SMC32:
 	case FFA_RXTX_MAP_SMC64:
@@ -1141,12 +1366,24 @@ static uint64_t ffa_features_handler(uint32_t smc_fid,
 		/* Execution stops here. */
 
 	/* Supported ABIs only from the secure world. */
+	case FFA_MEM_PERM_GET_SMC32:
+	case FFA_MEM_PERM_GET_SMC64:
+	case FFA_MEM_PERM_SET_SMC32:
+	case FFA_MEM_PERM_SET_SMC64:
+	/* these ABIs are only supported from S-EL0 SPs */
+	#if !(SPMC_AT_EL3_SEL0_SP)
+		return spmc_ffa_error_return(handle, FFA_ERROR_NOT_SUPPORTED);
+	#endif
+	/* fall through */
+
 	case FFA_SECONDARY_EP_REGISTER_SMC64:
 	case FFA_MSG_SEND_DIRECT_RESP_SMC32:
 	case FFA_MSG_SEND_DIRECT_RESP_SMC64:
+	case FFA_MSG_SEND_DIRECT_RESP2_SMC64:
 	case FFA_MEM_RELINQUISH:
 	case FFA_MSG_WAIT:
-
+	case FFA_CONSOLE_LOG_SMC32:
+	case FFA_CONSOLE_LOG_SMC64:
 		if (!secure_origin) {
 			return spmc_ffa_error_return(handle,
 				FFA_ERROR_NOT_SUPPORTED);
@@ -1251,21 +1488,28 @@ static uint64_t ffa_run_handler(uint32_t smc_fid,
 
 	/* Check that the target SP exists. */
 	sp = spmc_get_sp_ctx(target_id);
-		ERROR("Unknown partition ID (0x%x).\n", target_id);
 	if (sp == NULL) {
+		ERROR("Unknown partition ID (0x%x).\n", target_id);
 		return spmc_ffa_error_return(handle,
 					     FFA_ERROR_INVALID_PARAMETER);
 	}
 
 	idx = get_ec_index(sp);
+
 	if (idx != vcpu_id) {
 		ERROR("Cannot run vcpu %d != %d.\n", idx, vcpu_id);
 		return spmc_ffa_error_return(handle,
 					     FFA_ERROR_INVALID_PARAMETER);
 	}
+	if (sp->runtime_el == S_EL0) {
+		spin_lock(&sp->rt_state_lock);
+	}
 	rt_state = &((sp->ec[idx]).rt_state);
 	rt_model = &((sp->ec[idx]).rt_model);
 	if (*rt_state == RT_STATE_RUNNING) {
+		if (sp->runtime_el == S_EL0) {
+			spin_unlock(&sp->rt_state_lock);
+		}
 		ERROR("Partition (0x%x) is already running.\n", target_id);
 		return spmc_ffa_error_return(handle, FFA_ERROR_BUSY);
 	}
@@ -1292,8 +1536,12 @@ static uint64_t ffa_run_handler(uint32_t smc_fid,
 	 */
 	*rt_state = RT_STATE_RUNNING;
 
+	if (sp->runtime_el == S_EL0) {
+		spin_unlock(&sp->rt_state_lock);
+	}
+
 	return spmc_smc_return(smc_fid, secure_origin, x1, 0, 0, 0,
-			       handle, cookie, flags, target_id);
+			       handle, cookie, flags, target_id, sp->ffa_version);
 }
 
 static uint64_t rx_release_handler(uint32_t smc_fid,
@@ -1317,6 +1565,58 @@ static uint64_t rx_release_handler(uint32_t smc_fid,
 
 	mbox->state = MAILBOX_STATE_EMPTY;
 	spin_unlock(&mbox->lock);
+
+	SMC_RET1(handle, FFA_SUCCESS_SMC32);
+}
+
+static uint64_t spmc_ffa_console_log(uint32_t smc_fid,
+				     bool secure_origin,
+				     uint64_t x1,
+				     uint64_t x2,
+				     uint64_t x3,
+				     uint64_t x4,
+				     void *cookie,
+				     void *handle,
+				     uint64_t flags)
+{
+	/* Maximum number of characters is 48: 6 registers of 8 bytes each. */
+	char chars[48] = {0};
+	size_t chars_max;
+	size_t chars_count = x1;
+
+	/* Does not support request from Nwd. */
+	if (!secure_origin) {
+		return spmc_ffa_error_return(handle, FFA_ERROR_NOT_SUPPORTED);
+	}
+
+	assert(smc_fid == FFA_CONSOLE_LOG_SMC32 || smc_fid == FFA_CONSOLE_LOG_SMC64);
+	if (smc_fid == FFA_CONSOLE_LOG_SMC32) {
+		uint32_t *registers = (uint32_t *)chars;
+		registers[0] = (uint32_t)x2;
+		registers[1] = (uint32_t)x3;
+		registers[2] = (uint32_t)x4;
+		registers[3] = (uint32_t)SMC_GET_GP(handle, CTX_GPREG_X5);
+		registers[4] = (uint32_t)SMC_GET_GP(handle, CTX_GPREG_X6);
+		registers[5] = (uint32_t)SMC_GET_GP(handle, CTX_GPREG_X7);
+		chars_max = 6 * sizeof(uint32_t);
+	} else {
+		uint64_t *registers = (uint64_t *)chars;
+		registers[0] = x2;
+		registers[1] = x3;
+		registers[2] = x4;
+		registers[3] = SMC_GET_GP(handle, CTX_GPREG_X5);
+		registers[4] = SMC_GET_GP(handle, CTX_GPREG_X6);
+		registers[5] = SMC_GET_GP(handle, CTX_GPREG_X7);
+		chars_max = 6 * sizeof(uint64_t);
+	}
+
+	if ((chars_count == 0) || (chars_count > chars_max)) {
+		return spmc_ffa_error_return(handle, FFA_ERROR_INVALID_PARAMETER);
+	}
+
+	for (size_t i = 0; (i < chars_count) && (chars[i] != '\0'); i++) {
+		putchar(chars[i]);
+	}
 
 	SMC_RET1(handle, FFA_SUCCESS_SMC32);
 }
@@ -1420,6 +1720,259 @@ static uint64_t ffa_sec_ep_register_handler(uint32_t smc_fid,
 }
 
 /*******************************************************************************
+ * Permissions are encoded using a different format in the FFA_MEM_PERM_* ABIs
+ * than in the Trusted Firmware, where the mmap_attr_t enum type is used. This
+ * function converts a permission value from the FF-A format to the mmap_attr_t
+ * format by setting MT_RW/MT_RO, MT_USER/MT_PRIVILEGED and
+ * MT_EXECUTE/MT_EXECUTE_NEVER. The other fields are left as 0 because they are
+ * ignored by the function xlat_change_mem_attributes_ctx().
+ ******************************************************************************/
+static unsigned int ffa_perm_to_mmap_perm(unsigned int perms)
+{
+	unsigned int tf_attr = 0U;
+	unsigned int access;
+
+	/* Deal with data access permissions first. */
+	access = (perms & FFA_MEM_PERM_DATA_MASK) >> FFA_MEM_PERM_DATA_SHIFT;
+
+	switch (access) {
+	case FFA_MEM_PERM_DATA_RW:
+		/* Return 0 if the execute is set with RW. */
+		if ((perms & FFA_MEM_PERM_INST_NON_EXEC) != 0) {
+			tf_attr |= MT_RW | MT_USER | MT_EXECUTE_NEVER;
+		}
+		break;
+
+	case FFA_MEM_PERM_DATA_RO:
+		tf_attr |= MT_RO | MT_USER;
+		/* Deal with the instruction access permissions next. */
+		if ((perms & FFA_MEM_PERM_INST_NON_EXEC) == 0) {
+			tf_attr |= MT_EXECUTE;
+		} else {
+			tf_attr |= MT_EXECUTE_NEVER;
+		}
+		break;
+
+	case FFA_MEM_PERM_DATA_NA:
+	default:
+		return tf_attr;
+	}
+
+	return tf_attr;
+}
+
+/*******************************************************************************
+ * Handler to set the permissions of a set of contiguous pages of a S-EL0 SP
+ ******************************************************************************/
+static uint64_t ffa_mem_perm_set_handler(uint32_t smc_fid,
+					 bool secure_origin,
+					 uint64_t x1,
+					 uint64_t x2,
+					 uint64_t x3,
+					 uint64_t x4,
+					 void *cookie,
+					 void *handle,
+					 uint64_t flags)
+{
+	struct secure_partition_desc *sp;
+	unsigned int idx;
+	uintptr_t base_va = (uintptr_t) x1;
+	size_t size = (size_t)(x2 * PAGE_SIZE);
+	uint32_t tf_attr;
+	int ret;
+
+	/* This request cannot originate from the Normal world. */
+	if (!secure_origin) {
+		return spmc_ffa_error_return(handle, FFA_ERROR_NOT_SUPPORTED);
+	}
+
+	if (size == 0) {
+		return spmc_ffa_error_return(handle,
+					     FFA_ERROR_INVALID_PARAMETER);
+	}
+
+	/* Get the context of the current SP. */
+	sp = spmc_get_current_sp_ctx();
+	if (sp == NULL) {
+		return spmc_ffa_error_return(handle,
+					     FFA_ERROR_INVALID_PARAMETER);
+	}
+
+	/* A S-EL1 SP has no business invoking this ABI. */
+	if (sp->runtime_el == S_EL1) {
+		return spmc_ffa_error_return(handle, FFA_ERROR_DENIED);
+	}
+
+	if ((x3 & ~((uint64_t)FFA_MEM_PERM_MASK)) != 0) {
+		return spmc_ffa_error_return(handle,
+					     FFA_ERROR_INVALID_PARAMETER);
+	}
+
+	/* Get the execution context of the calling SP. */
+	idx = get_ec_index(sp);
+
+	/*
+	 * Ensure that the S-EL0 SP is initialising itself. We do not need to
+	 * synchronise this operation through a spinlock since a S-EL0 SP is UP
+	 * and can only be initialising on this cpu.
+	 */
+	if (sp->ec[idx].rt_model != RT_MODEL_INIT) {
+		return spmc_ffa_error_return(handle, FFA_ERROR_DENIED);
+	}
+
+	VERBOSE("Setting memory permissions:\n");
+	VERBOSE("  Start address  : 0x%lx\n", base_va);
+	VERBOSE("  Number of pages: %lu (%zu bytes)\n", x2, size);
+	VERBOSE("  Attributes     : 0x%x\n", (uint32_t)x3);
+
+	/* Convert inbound permissions to TF-A permission attributes */
+	tf_attr = ffa_perm_to_mmap_perm((unsigned int)x3);
+	if (tf_attr == 0U) {
+		return spmc_ffa_error_return(handle,
+					     FFA_ERROR_INVALID_PARAMETER);
+	}
+
+	/* Request the change in permissions */
+	ret = xlat_change_mem_attributes_ctx(sp->xlat_ctx_handle,
+					     base_va, size, tf_attr);
+	if (ret != 0) {
+		return spmc_ffa_error_return(handle,
+					     FFA_ERROR_INVALID_PARAMETER);
+	}
+
+	SMC_RET1(handle, FFA_SUCCESS_SMC32);
+}
+
+/*******************************************************************************
+ * Permissions are encoded using a different format in the FFA_MEM_PERM_* ABIs
+ * than in the Trusted Firmware, where the mmap_attr_t enum type is used. This
+ * function converts a permission value from the mmap_attr_t format to the FF-A
+ * format.
+ ******************************************************************************/
+static unsigned int mmap_perm_to_ffa_perm(unsigned int attr)
+{
+	unsigned int perms = 0U;
+	unsigned int data_access;
+
+	if ((attr & MT_USER) == 0) {
+		/* No access from EL0. */
+		data_access = FFA_MEM_PERM_DATA_NA;
+	} else {
+		if ((attr & MT_RW) != 0) {
+			data_access = FFA_MEM_PERM_DATA_RW;
+		} else {
+			data_access = FFA_MEM_PERM_DATA_RO;
+		}
+	}
+
+	perms |= (data_access & FFA_MEM_PERM_DATA_MASK)
+		<< FFA_MEM_PERM_DATA_SHIFT;
+
+	if ((attr & MT_EXECUTE_NEVER) != 0U) {
+		perms |= FFA_MEM_PERM_INST_NON_EXEC;
+	}
+
+	return perms;
+}
+
+/*******************************************************************************
+ * Handler to get the permissions of a set of contiguous pages of a S-EL0 SP
+ ******************************************************************************/
+static uint64_t ffa_mem_perm_get_handler(uint32_t smc_fid,
+					 bool secure_origin,
+					 uint64_t x1,
+					 uint64_t x2,
+					 uint64_t x3,
+					 uint64_t x4,
+					 void *cookie,
+					 void *handle,
+					 uint64_t flags)
+{
+	struct secure_partition_desc *sp;
+	unsigned int idx;
+	uintptr_t base_va = (uintptr_t)x1;
+	uint64_t max_page_count = x2 + 1;
+	uint64_t page_count = 0;
+	uint32_t base_page_attr = 0;
+	uint32_t page_attr = 0;
+	unsigned int table_level;
+	int ret;
+
+	/* This request cannot originate from the Normal world. */
+	if (!secure_origin) {
+		return spmc_ffa_error_return(handle, FFA_ERROR_NOT_SUPPORTED);
+	}
+
+	/* Get the context of the current SP. */
+	sp = spmc_get_current_sp_ctx();
+	if (sp == NULL) {
+		return spmc_ffa_error_return(handle,
+					     FFA_ERROR_INVALID_PARAMETER);
+	}
+
+	/* A S-EL1 SP has no business invoking this ABI. */
+	if (sp->runtime_el == S_EL1) {
+		return spmc_ffa_error_return(handle, FFA_ERROR_DENIED);
+	}
+
+	/* Get the execution context of the calling SP. */
+	idx = get_ec_index(sp);
+
+	/*
+	 * Ensure that the S-EL0 SP is initialising itself. We do not need to
+	 * synchronise this operation through a spinlock since a S-EL0 SP is UP
+	 * and can only be initialising on this cpu.
+	 */
+	if (sp->ec[idx].rt_model != RT_MODEL_INIT) {
+		return spmc_ffa_error_return(handle, FFA_ERROR_DENIED);
+	}
+
+	base_va &= ~(PAGE_SIZE_MASK);
+
+	/* Request the permissions */
+	ret = xlat_get_mem_attributes_ctx(sp->xlat_ctx_handle, base_va,
+			&base_page_attr, &table_level);
+	if (ret != 0) {
+		return spmc_ffa_error_return(handle,
+					     FFA_ERROR_INVALID_PARAMETER);
+	}
+
+	/*
+	 * Caculate how many pages in this block entry from base_va including
+	 * its page.
+	 */
+	page_count = ((XLAT_BLOCK_SIZE(table_level) -
+			(base_va & XLAT_BLOCK_MASK(table_level))) >> PAGE_SIZE_SHIFT);
+	base_va += XLAT_BLOCK_SIZE(table_level);
+
+	while ((page_count < max_page_count) && (base_va != 0x00)) {
+		ret = xlat_get_mem_attributes_ctx(sp->xlat_ctx_handle, base_va,
+				&page_attr, &table_level);
+		if (ret != 0) {
+			return spmc_ffa_error_return(handle,
+						     FFA_ERROR_INVALID_PARAMETER);
+		}
+
+		if (page_attr != base_page_attr) {
+			break;
+		}
+
+		base_va += XLAT_BLOCK_SIZE(table_level);
+		page_count += (XLAT_BLOCK_SIZE(table_level) >> PAGE_SIZE_SHIFT);
+	}
+
+	if (page_count > max_page_count) {
+		page_count = max_page_count;
+	}
+
+	/* Convert TF-A permission to FF-A permissions attributes. */
+	x2 = mmap_perm_to_ffa_perm(base_page_attr);
+
+	/* x3 should be page count - 1 */
+	SMC_RET4(handle, FFA_SUCCESS_SMC32, 0, x2, --page_count);
+}
+
+/*******************************************************************************
  * This function will parse the Secure Partition Manifest. From manifest, it
  * will fetch details for preparing Secure partition image context and secure
  * partition image boot arguments if any.
@@ -1482,7 +2035,9 @@ static int sp_manifest_parse(void *sp_manifest, int offset,
 
 	/* Validate this entry, we currently only support direct messaging. */
 	if ((config_32 & ~(FFA_PARTITION_DIRECT_REQ_RECV |
-			  FFA_PARTITION_DIRECT_REQ_SEND)) != 0U) {
+			  FFA_PARTITION_DIRECT_REQ_SEND |
+			  FFA_PARTITION_DIRECT_REQ2_RECV |
+			  FFA_PARTITION_DIRECT_REQ2_SEND)) != 0U) {
 		WARN("Invalid Secure Partition messaging method (0x%x)\n",
 		     config_32);
 		return -EINVAL;
@@ -1503,7 +2058,7 @@ static int sp_manifest_parse(void *sp_manifest, int offset,
 	 * since this is currently a hardcoded value for S-EL1 partitions
 	 * we don't need to save it here, just validate.
 	 */
-	if (config_32 != PLATFORM_CORE_COUNT) {
+	if ((sp->runtime_el == S_EL1) && (config_32 != PLATFORM_CORE_COUNT)) {
 		ERROR("SP Execution Context Count (%u) must be %u.\n",
 			config_32, PLATFORM_CORE_COUNT);
 		return -EINVAL;
@@ -1530,6 +2085,11 @@ static int sp_manifest_parse(void *sp_manifest, int offset,
 	if (ret != 0) {
 		WARN("Missing Power Management Messages entry.\n");
 	} else {
+		if ((sp->runtime_el == S_EL0) && (config_32 != 0)) {
+			ERROR("Power messages not supported for S-EL0 SP\n");
+			return -EINVAL;
+		}
+
 		/*
 		 * Ensure only the currently supported power messages have
 		 * been requested.
@@ -1619,7 +2179,8 @@ static int find_and_prepare_sp_context(void)
 	 * the manifest as boot information later.
 	 */
 	next_image_ep_info->args.arg1 = fdt_totalsize(sp_manifest);
-	INFO("Manifest size = %lu bytes.\n", next_image_ep_info->args.arg1);
+	INFO("Manifest adr = %lx , size = %lu bytes\n", manifest_base,
+	     next_image_ep_info->args.arg1);
 
 	/*
 	 * Select an SP descriptor for initialising the partition's execution
@@ -1627,6 +2188,11 @@ static int find_and_prepare_sp_context(void)
 	 */
 	sp = spmc_get_current_sp_ctx();
 
+#if SPMC_AT_EL3_SEL0_SP
+	/* Assign translation tables context. */
+	sp_desc->xlat_ctx_handle = spm_get_sp_xlat_context();
+
+#endif /* SPMC_AT_EL3_SEL0_SP */
 	/* Initialize entry point information for the SP */
 	SET_PARAM_HEAD(next_image_ep_info, PARAM_EP, VERSION_1,
 		       SECURE | EP_ST_ENABLE);
@@ -1639,20 +2205,33 @@ static int find_and_prepare_sp_context(void)
 		return ret;
 	}
 
-	/* Check that the runtime EL in the manifest was correct. */
-	if (sp->runtime_el != S_EL1) {
-		ERROR("Unexpected runtime EL: %d\n", sp->runtime_el);
-		return -EINVAL;
-	}
-
 	/* Perform any common initialisation. */
 	spmc_sp_common_setup(sp, next_image_ep_info, boot_info_reg);
 
 	/* Perform any initialisation specific to S-EL1 SPs. */
-	spmc_el1_sp_setup(sp, next_image_ep_info);
+	if (sp->runtime_el == S_EL1) {
+		spmc_el1_sp_setup(sp, next_image_ep_info);
+		spmc_sp_common_ep_commit(sp, next_image_ep_info);
+	}
+#if SPMC_AT_EL3_SEL0_SP
+	/* Perform any initialisation specific to S-EL0 SPs. */
+	else if (sp->runtime_el == S_EL0) {
+		/* Setup spsr in endpoint info for common context management routine. */
+		spmc_el0_sp_spsr_setup(next_image_ep_info);
 
-	/* Initialize the SP context with the required ep info. */
-	spmc_sp_common_ep_commit(sp, next_image_ep_info);
+		spmc_sp_common_ep_commit(sp, next_image_ep_info);
+
+		/*
+		 * Perform any initialisation specific to S-EL0 not set by common
+		 * context management routine.
+		 */
+		spmc_el0_sp_setup(sp, boot_info_reg, sp_manifest);
+	}
+#endif /* SPMC_AT_EL3_SEL0_SP */
+	else {
+		ERROR("Unexpected runtime EL: %u\n", sp->runtime_el);
+		return -EINVAL;
+	}
 
 	return 0;
 }
@@ -1900,11 +2479,13 @@ uint64_t spmc_smc_handler(uint32_t smc_fid,
 
 	case FFA_MSG_SEND_DIRECT_REQ_SMC32:
 	case FFA_MSG_SEND_DIRECT_REQ_SMC64:
+	case FFA_MSG_SEND_DIRECT_REQ2_SMC64:
 		return direct_req_smc_handler(smc_fid, secure_origin, x1, x2,
 					      x3, x4, cookie, handle, flags);
 
 	case FFA_MSG_SEND_DIRECT_RESP_SMC32:
 	case FFA_MSG_SEND_DIRECT_RESP_SMC64:
+	case FFA_MSG_SEND_DIRECT_RESP2_SMC64:
 		return direct_resp_smc_handler(smc_fid, secure_origin, x1, x2,
 					       x3, x4, cookie, handle, flags);
 
@@ -1964,7 +2545,21 @@ uint64_t spmc_smc_handler(uint32_t smc_fid,
 
 	case FFA_MEM_RECLAIM:
 		return spmc_ffa_mem_reclaim(smc_fid, secure_origin, x1, x2, x3,
-					    x4, cookie, handle, flags);
+						x4, cookie, handle, flags);
+	case FFA_CONSOLE_LOG_SMC32:
+	case FFA_CONSOLE_LOG_SMC64:
+		return spmc_ffa_console_log(smc_fid, secure_origin, x1, x2, x3,
+						x4, cookie, handle, flags);
+
+	case FFA_MEM_PERM_GET_SMC32:
+	case FFA_MEM_PERM_GET_SMC64:
+		return ffa_mem_perm_get_handler(smc_fid, secure_origin, x1, x2,
+						x3, x4, cookie, handle, flags);
+
+	case FFA_MEM_PERM_SET_SMC32:
+	case FFA_MEM_PERM_SET_SMC64:
+		return ffa_mem_perm_set_handler(smc_fid, secure_origin, x1, x2,
+						x3, x4, cookie, handle, flags);
 
 	default:
 		WARN("Unsupported FF-A call 0x%08x.\n", smc_fid);
@@ -2019,9 +2614,11 @@ static uint64_t spmc_sp_interrupt_handler(uint32_t id,
 	/*
 	 * Forward the interrupt to the S-EL1 SP. The interrupt ID is not
 	 * populated as the SP can determine this by itself.
+	 * The flags field is forced to 0 mainly to pass the SVE hint bit
+	 * cleared for consumption by the lower EL.
 	 */
 	return spmd_smc_switch_state(FFA_INTERRUPT, false,
 				     FFA_PARAM_MBZ, FFA_PARAM_MBZ,
 				     FFA_PARAM_MBZ, FFA_PARAM_MBZ,
-				     handle);
+				     handle, 0ULL, sp->ffa_version);
 }

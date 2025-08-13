@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, Arm Limited and Contributors. All rights reserved.
+ * Copyright (c) 2021-2025, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -17,7 +17,11 @@
 #include <common/runtime_svc.h>
 #include <context.h>
 #include <lib/el3_runtime/context_mgmt.h>
+#include <lib/el3_runtime/cpu_data.h>
 #include <lib/el3_runtime/pubsub.h>
+#include <lib/extensions/mpam.h>
+#include <lib/extensions/pmuv3.h>
+#include <lib/extensions/sys_reg_trace.h>
 #include <lib/gpt_rme/gpt_rme.h>
 
 #include <lib/spinlock.h>
@@ -28,8 +32,10 @@
 #include <platform_def.h>
 #include <services/rmmd_svc.h>
 #include <smccc_helpers.h>
+#include <lib/extensions/sme.h>
 #include <lib/extensions/sve.h>
-#include "rmmd_initial_context.h"
+#include <lib/extensions/spe.h>
+#include <lib/extensions/trbe.h>
 #include "rmmd_private.h"
 
 /*******************************************************************************
@@ -66,7 +72,6 @@ uint64_t rmmd_rmm_sync_entry(rmmd_rmm_context_t *rmm_ctx)
 	cm_set_context(&(rmm_ctx->cpu_ctx), REALM);
 
 	/* Restore the realm context assigned above */
-	cm_el1_sysregs_context_restore(REALM);
 	cm_el2_sysregs_context_restore(REALM);
 	cm_set_next_eret_context(REALM);
 
@@ -74,12 +79,10 @@ uint64_t rmmd_rmm_sync_entry(rmmd_rmm_context_t *rmm_ctx)
 	rc = rmmd_rmm_enter(&rmm_ctx->c_rt_ctx);
 
 	/*
-	 * Save realm context. EL1 and EL2 Non-secure
-	 * contexts will be restored before exiting to
-	 * Non-secure world, therefore there is no need
-	 * to clear EL1 and EL2 context registers.
+	 * Save realm context. EL2 Non-secure context will be restored
+	 * before exiting Non-secure world, therefore there is no need
+	 * to clear EL2 context registers.
 	 */
-	cm_el1_sysregs_context_save(REALM);
 	cm_el2_sysregs_context_save(REALM);
 
 	return rc;
@@ -106,27 +109,6 @@ __dead2 void rmmd_rmm_sync_exit(uint64_t rc)
 	panic();
 }
 
-static void rmm_el2_context_init(el2_sysregs_t *regs)
-{
-	regs->ctx_regs[CTX_SPSR_EL2 >> 3] = REALM_SPSR_EL2;
-	regs->ctx_regs[CTX_SCTLR_EL2 >> 3] = SCTLR_EL2_RES1;
-}
-
-/*******************************************************************************
- * Enable architecture extensions on first entry to Realm world.
- ******************************************************************************/
-static void manage_extensions_realm(cpu_context_t *ctx)
-{
-	if (is_feat_sve_supported()) {
-	/*
-	 * Enable SVE and FPU in realm context when it is enabled for NS.
-	 * Realm manager must ensure that the SVE and FPU register
-	 * contexts are properly managed.
-	 */
-		sve_enable(ctx);
-	}
-}
-
 /*******************************************************************************
  * Jump to the RMM for the first time.
  ******************************************************************************/
@@ -136,12 +118,6 @@ static int32_t rmm_init(void)
 	rmmd_rmm_context_t *ctx = &rmm_context[plat_my_core_pos()];
 
 	INFO("RMM init start.\n");
-
-	/* Enable architecture extensions */
-	manage_extensions_realm(&ctx->cpu_ctx);
-
-	/* Initialize RMM EL2 context. */
-	rmm_el2_context_init(&ctx->cpu_ctx.el2_sysregs_ctx);
 
 	rc = rmmd_rmm_sync_entry(ctx);
 	if (rc != E_RMM_BOOT_SUCCESS) {
@@ -170,18 +146,22 @@ int rmmd_setup(void)
 	int rc;
 
 	/* Make sure RME is supported. */
-	assert(get_armv9_2_feat_rme_support() != 0U);
+	if (is_feat_rme_present() == 0U) {
+		/* Mark the RMM boot as failed for all the CPUs */
+		rmm_boot_failed = true;
+		return -ENOTSUP;
+	}
 
 	rmm_ep_info = bl31_plat_get_next_image_ep_info(REALM);
-	if (rmm_ep_info == NULL) {
+	if ((rmm_ep_info == NULL) || (rmm_ep_info->pc == 0)) {
 		WARN("No RMM image provided by BL2 boot loader, Booting "
 		     "device without RMM initialization. SMCs destined for "
 		     "RMM will return SMC_UNK\n");
+
+		/* Mark the boot as failed for all the CPUs */
+		rmm_boot_failed = true;
 		return -ENOENT;
 	}
-
-	/* Under no circumstances will this parameter be 0 */
-	assert(rmm_ep_info->pc == RMM_BASE);
 
 	/* Initialise an entrypoint to set up the CPU context */
 	ep_attr = EP_REALM;
@@ -200,11 +180,15 @@ int rmmd_setup(void)
 	assert((shared_buf_size == SZ_4K) &&
 					((void *)shared_buf_base != NULL));
 
-	/* Load the boot manifest at the beginning of the shared area */
+	/* Zero out and load the boot manifest at the beginning of the share area */
 	manifest = (struct rmm_manifest *)shared_buf_base;
+	(void)memset((void *)manifest, 0, sizeof(struct rmm_manifest));
+
 	rc = plat_rmmd_load_manifest(manifest);
 	if (rc != 0) {
 		ERROR("Error loading RMM Boot Manifest (%i)\n", rc);
+		/* Mark the boot as failed for all the CPUs */
+		rmm_boot_failed = true;
 		return rc;
 	}
 	flush_dcache_range((uintptr_t)shared_buf_base, shared_buf_size);
@@ -244,11 +228,9 @@ static uint64_t	rmmd_smc_forward(uint32_t src_sec_state,
 	cpu_context_t *ctx = cm_get_context(dst_sec_state);
 
 	/* Save incoming security state */
-	cm_el1_sysregs_context_save(src_sec_state);
 	cm_el2_sysregs_context_save(src_sec_state);
 
 	/* Restore outgoing security state */
-	cm_el1_sysregs_context_restore(dst_sec_state);
 	cm_el2_sysregs_context_restore(dst_sec_state);
 	cm_set_next_eret_context(dst_sec_state);
 
@@ -300,6 +282,14 @@ uint64_t rmmd_rmi_handler(uint32_t smc_fid, uint64_t x1, uint64_t x2,
 	 * is.
 	 */
 	if (src_sec_state == SMC_FROM_NON_SECURE) {
+		/*
+		 * If SVE hint bit is set in the flags then update the SMC
+		 * function id and pass it on to the lower EL.
+		 */
+		if (is_sve_hint_set(flags)) {
+			smc_fid |= (FUNCID_SVE_HINT_MASK <<
+				    FUNCID_SVE_HINT_SHIFT);
+		}
 		VERBOSE("RMMD: RMI call from non-secure world.\n");
 		return rmmd_smc_forward(NON_SECURE, REALM, smc_fid,
 					x1, x2, x3, x4, handle);
@@ -353,12 +343,6 @@ static void *rmmd_cpu_on_finish_handler(const void *arg)
 	/* Initialise RMM context with this entry point information */
 	cm_setup_context(&ctx->cpu_ctx, rmm_ep_info);
 
-	/* Enable architecture extensions */
-	manage_extensions_realm(&ctx->cpu_ctx);
-
-	/* Initialize RMM EL2 context. */
-	rmm_el2_context_init(&ctx->cpu_ctx.el2_sysregs_ctx);
-
 	rc = rmmd_rmm_sync_entry(ctx);
 
 	if (rc != E_RMM_BOOT_SUCCESS) {
@@ -395,6 +379,56 @@ static int gpt_to_gts_error(int error, uint32_t smc_fid, uint64_t address)
 	return ret;
 }
 
+static int rmm_el3_ifc_get_feat_register(uint64_t feat_reg_idx,
+					 uint64_t *feat_reg)
+{
+	if (feat_reg_idx != RMM_EL3_FEAT_REG_0_IDX) {
+		ERROR("RMMD: Failed to get feature register %ld\n", feat_reg_idx);
+		return E_RMM_INVAL;
+	}
+
+	*feat_reg = 0UL;
+#if RMMD_ENABLE_EL3_TOKEN_SIGN
+	*feat_reg |= RMM_EL3_FEAT_REG_0_EL3_TOKEN_SIGN_MASK;
+#endif
+	return E_RMM_OK;
+}
+
+/*
+ * Update encryption key associated with @mecid.
+ */
+static int rmmd_mecid_key_update(uint64_t mecid)
+{
+	uint64_t mecid_width, mecid_width_mask;
+	int ret;
+
+	/*
+	 * Check whether FEAT_MEC is supported by the hardware. If not, return
+	 * unknown SMC.
+	 */
+	if (is_feat_mec_supported() == false) {
+		return E_RMM_UNK;
+	}
+
+	/*
+	 * Check whether the mecid parameter is at most MECIDR_EL2.MECIDWidthm1 + 1
+	 * in length.
+	 */
+	mecid_width = ((read_mecidr_el2() >> MECIDR_EL2_MECIDWidthm1_SHIFT) &
+		MECIDR_EL2_MECIDWidthm1_MASK) + 1;
+	mecid_width_mask = ((1 << mecid_width) - 1);
+	if ((mecid & ~mecid_width_mask) != 0U) {
+		return E_RMM_INVAL;
+	}
+
+	ret = plat_rmmd_mecid_key_update(mecid);
+
+	if (ret != 0) {
+		return E_RMM_UNK;
+	}
+	return E_RMM_OK;
+}
+
 /*******************************************************************************
  * This function handles RMM-EL3 interface SMCs
  ******************************************************************************/
@@ -402,6 +436,7 @@ uint64_t rmmd_rmm_el3_handler(uint32_t smc_fid, uint64_t x1, uint64_t x2,
 				uint64_t x3, uint64_t x4, void *cookie,
 				void *handle, uint64_t flags)
 {
+	uint64_t remaining_len = 0UL;
 	uint32_t src_sec_state;
 	int ret;
 
@@ -426,17 +461,57 @@ uint64_t rmmd_rmm_el3_handler(uint32_t smc_fid, uint64_t x1, uint64_t x2,
 	case RMM_GTSI_UNDELEGATE:
 		ret = gpt_undelegate_pas(x1, PAGE_SIZE_4KB, SMC_FROM_REALM);
 		SMC_RET1(handle, gpt_to_gts_error(ret, smc_fid, x1));
-	case RMM_ATTEST_GET_PLAT_TOKEN:
-		ret = rmmd_attest_get_platform_token(x1, &x2, x3);
-		SMC_RET2(handle, ret, x2);
 	case RMM_ATTEST_GET_REALM_KEY:
 		ret = rmmd_attest_get_signing_key(x1, &x2, x3);
 		SMC_RET2(handle, ret, x2);
+	case RMM_ATTEST_GET_PLAT_TOKEN:
+		ret = rmmd_attest_get_platform_token(x1, &x2, x3, &remaining_len);
+		SMC_RET3(handle, ret, x2, remaining_len);
+	case RMM_EL3_FEATURES:
+		ret = rmm_el3_ifc_get_feat_register(x1, &x2);
+		SMC_RET2(handle, ret, x2);
+#if RMMD_ENABLE_EL3_TOKEN_SIGN
+	case RMM_EL3_TOKEN_SIGN:
+		return rmmd_el3_token_sign(handle, x1, x2, x3, x4);
+#endif
 
+#if RMMD_ENABLE_IDE_KEY_PROG
+	case RMM_IDE_KEY_PROG:
+	{
+		rp_ide_key_info_t ide_key_info;
+
+		ide_key_info.keyqw0 = x4;
+		ide_key_info.keyqw1 = SMC_GET_GP(handle, CTX_GPREG_X5);
+		ide_key_info.keyqw2 = SMC_GET_GP(handle, CTX_GPREG_X6);
+		ide_key_info.keyqw3 = SMC_GET_GP(handle, CTX_GPREG_X7);
+		ide_key_info.ifvqw0 = SMC_GET_GP(handle, CTX_GPREG_X8);
+		ide_key_info.ifvqw1 = SMC_GET_GP(handle, CTX_GPREG_X9);
+		uint64_t x10 = SMC_GET_GP(handle, CTX_GPREG_X10);
+		uint64_t x11 = SMC_GET_GP(handle, CTX_GPREG_X11);
+
+		ret = rmmd_el3_ide_key_program(x1, x2, x3, &ide_key_info, x10, x11);
+		SMC_RET1(handle, ret);
+	}
+	case RMM_IDE_KEY_SET_GO:
+		ret = rmmd_el3_ide_key_set_go(x1, x2, x3, x4, SMC_GET_GP(handle, CTX_GPREG_X5));
+		SMC_RET1(handle, ret);
+	case RMM_IDE_KEY_SET_STOP:
+		ret = rmmd_el3_ide_key_set_stop(x1, x2, x3, x4, SMC_GET_GP(handle, CTX_GPREG_X5));
+		SMC_RET1(handle, ret);
+	case RMM_IDE_KM_PULL_RESPONSE: {
+		uint64_t req_resp = 0, req_id = 0, cookie_var = 0;
+
+		ret = rmmd_el3_ide_km_pull_response(x1, x2, &req_resp, &req_id, &cookie_var);
+		SMC_RET4(handle, ret, req_resp, req_id, cookie_var);
+	}
+#endif /* RMMD_ENABLE_IDE_KEY_PROG */
 	case RMM_BOOT_COMPLETE:
 		VERBOSE("RMMD: running rmmd_rmm_sync_exit\n");
 		rmmd_rmm_sync_exit(x1);
 
+	case RMM_MECID_KEY_UPDATE:
+		ret = rmmd_mecid_key_update(x1);
+		SMC_RET1(handle, ret);
 	default:
 		WARN("RMMD: Unsupported RMM-EL3 call 0x%08x\n", smc_fid);
 		SMC_RET1(handle, SMC_UNK);

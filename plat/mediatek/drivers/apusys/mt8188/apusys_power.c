@@ -1,9 +1,10 @@
 /*
- * Copyright (c) 2023, MediaTek Inc. All rights reserved.
+ * Copyright (c) 2023-2024, MediaTek Inc. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include <errno.h>
 #include <inttypes.h>
 
 /* TF-A system header */
@@ -17,6 +18,8 @@
 /* Vendor header */
 #include "apusys.h"
 #include "apusys_power.h"
+#include "apusys_rv.h"
+#include "apusys_rv_pwr_ctrl.h"
 #include <mtk_mmap_pool.h>
 
 static spinlock_t apu_lock;
@@ -36,7 +39,6 @@ static int apu_poll(uintptr_t reg, uint32_t mask, uint32_t value, uint32_t timeo
 		if ((reg_val & mask) == value) {
 			return 0;
 		}
-
 		udelay(APU_POLL_STEP_US);
 	} while (--count);
 
@@ -45,6 +47,43 @@ static int apu_poll(uintptr_t reg, uint32_t mask, uint32_t value, uint32_t timeo
 	      (value == 0U) ? (reg_val & ~mask) : (reg_val | mask));
 
 	return -1;
+}
+
+static void apu_backup_restore(enum APU_BACKUP_RESTORE_CTRL ctrl)
+{
+	int i;
+	static struct apu_restore_data apu_restore_data[] = {
+		{ UP_NORMAL_DOMAIN_NS, 0 },
+		{ UP_PRI_DOMAIN_NS, 0 },
+		{ UP_IOMMU_CTRL, 0 },
+		{ UP_CORE0_VABASE0, 0 },
+		{ UP_CORE0_MVABASE0, 0 },
+		{ UP_CORE0_VABASE1, 0 },
+		{ UP_CORE0_MVABASE1, 0 },
+		{ UP_CORE0_VABASE2, 0 },
+		{ UP_CORE0_MVABASE2, 0 },
+		{ UP_CORE0_VABASE3, 0 },
+		{ UP_CORE0_MVABASE3, 0 },
+		{ MD32_SYS_CTRL, 0 },
+		{ MD32_CLK_CTRL, 0 },
+		{ UP_WAKE_HOST_MASK0, 0 }
+	};
+
+	switch (ctrl) {
+	case APU_CTRL_BACKUP:
+		for (i = 0; i < ARRAY_SIZE(apu_restore_data); i++) {
+			apu_restore_data[i].data = mmio_read_32(apu_restore_data[i].reg);
+		}
+		break;
+	case APU_CTRL_RESTORE:
+		for (i = 0; i < ARRAY_SIZE(apu_restore_data); i++) {
+			mmio_write_32(apu_restore_data[i].reg, apu_restore_data[i].data);
+		}
+		break;
+	default:
+		ERROR(MODULE_TAG "%s invalid op: %d\n", __func__, ctrl);
+		break;
+	}
 }
 
 static void apu_xpu2apusys_d4_slv_en(enum APU_D4_SLV_CTRL en)
@@ -81,7 +120,7 @@ static void apu_pwr_flow_remote_sync(uint32_t cfg)
 	mmio_write_32(APU_MBOX0_BASE + PWR_FLOW_SYNC_REG, (cfg & 0x1));
 }
 
-int apusys_kernel_apusys_pwr_top_on(void)
+static int apusys_kernel_apusys_pwr_top_on(void)
 {
 	int ret;
 
@@ -120,6 +159,8 @@ int apusys_kernel_apusys_pwr_top_on(void)
 
 	apu_xpu2apusys_d4_slv_en(D4_SLV_OFF);
 
+	apu_backup_restore(APU_CTRL_RESTORE);
+
 	apusys_top_on = true;
 
 	spin_unlock(&apu_lock);
@@ -129,19 +170,23 @@ int apusys_kernel_apusys_pwr_top_on(void)
 static void apu_sleep_rpc_rcx(void)
 {
 	mmio_write_32(APU_RPC_BASE + APU_RPC_TOP_CON, REG_WAKEUP_CLR);
+	dsb();
 	udelay(10);
 
 	mmio_setbits_32(APU_RPC_BASE + APU_RPC_TOP_SEL, (RPC_CTRL | RSV10));
+	dsb();
 	udelay(10);
 
 	mmio_setbits_32(APU_RPC_BASE + APU_RPC_TOP_CON, CLR_IRQ);
+	dsb();
 	udelay(10);
 
 	mmio_setbits_32(APU_RPC_BASE + APU_RPC_TOP_CON, SLEEP_REQ);
+	dsb();
 	udelay(100);
 }
 
-int apusys_kernel_apusys_pwr_top_off(void)
+static int apusys_kernel_apusys_pwr_top_off(void)
 {
 	int ret;
 
@@ -152,6 +197,8 @@ int apusys_kernel_apusys_pwr_top_off(void)
 		spin_unlock(&apu_lock);
 		return 0;
 	}
+
+	apu_backup_restore(APU_CTRL_BACKUP);
 
 	apu_xpu2apusys_d4_slv_en(D4_SLV_ON);
 
@@ -174,6 +221,19 @@ int apusys_kernel_apusys_pwr_top_off(void)
 
 	spin_unlock(&apu_lock);
 	return ret;
+}
+
+int apusys_rv_pwr_ctrl(enum APU_PWR_OP op)
+{
+	if (op != APU_PWR_OFF && op != APU_PWR_ON) {
+		ERROR(MODULE_TAG "%s unknown request_ops = %d\n", __func__, op);
+		return -EINVAL;
+	}
+
+	if (op == APU_PWR_ON)
+		return apusys_kernel_apusys_pwr_top_on();
+
+	return apusys_kernel_apusys_pwr_top_off();
 }
 
 static void get_pll_pcw(const uint32_t clk_rate, uint32_t *r1, uint32_t *r2)
@@ -271,12 +331,15 @@ static void apu_acc_init(void)
 static void apu_buck_off_cfg(void)
 {
 	mmio_write_32(APU_RPC_BASE + APU_RPC_HW_CON, BUCK_PROT_REQ_SET);
+	dsb();
 	udelay(10);
 
 	mmio_write_32(APU_RPC_BASE + APU_RPC_HW_CON, BUCK_ELS_EN_SET);
+	dsb();
 	udelay(10);
 
 	mmio_write_32(APU_RPC_BASE + APU_RPC_HW_CON, BUCK_AO_RST_B_CLR);
+	dsb();
 	udelay(10);
 }
 
@@ -383,15 +446,19 @@ static void apu_aoc_init(void)
 {
 	mmio_clrbits_32(SPM_BASE + APUSYS_BUCK_ISOLATION, IPU_EXT_BUCK_ISO);
 	mmio_write_32(APU_RPC_BASE + APU_RPC_HW_CON, BUCK_ELS_EN_CLR);
+	dsb();
 	udelay(10);
 
 	mmio_write_32(APU_RPC_BASE + APU_RPC_HW_CON, BUCK_AO_RST_B_SET);
+	dsb();
 	udelay(10);
 
 	mmio_write_32(APU_RPC_BASE + APU_RPC_HW_CON, BUCK_PROT_REQ_CLR);
+	dsb();
 	udelay(10);
 
 	mmio_write_32(APU_RPC_BASE + APU_RPC_HW_CON, SRAM_AOC_ISO_CLR);
+	dsb();
 	udelay(10);
 }
 
@@ -428,4 +495,11 @@ int apusys_power_init(void)
 	}
 
 	return ret;
+}
+
+int apusys_infra_dcm_setup(void)
+{
+	WARN(MODULE_TAG "%s not support\n", __func__);
+
+	return -EOPNOTSUPP;
 }

@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2019-2022, ARM Limited and Contributors. All rights reserved.
- * Copyright (c) 2019-2022, Intel Corporation. All rights reserved.
+ * Copyright (c) 2019-2023, Intel Corporation. All rights reserved.
+ * Copyright (c) 2024-2025, Altera Corporation. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -28,7 +29,9 @@
 #include "socfpga_mailbox.h"
 #include "socfpga_private.h"
 #include "socfpga_reset_manager.h"
+#include "socfpga_ros.h"
 #include "socfpga_system_manager.h"
+#include "socfpga_vab.h"
 #include "wdt/watchdog.h"
 
 static struct mmc_device_info mmc_info;
@@ -92,6 +95,7 @@ void bl2_el3_early_platform_setup(u_register_t x0, u_register_t x1,
 void bl2_el3_plat_arch_setup(void)
 {
 
+	unsigned long offset = 0;
 	const mmap_region_t bl_regions[] = {
 		MAP_REGION_FLAT(BL2_BASE, BL2_END - BL2_BASE,
 			MT_MEMORY | MT_RW | MT_SECURE),
@@ -110,7 +114,10 @@ void bl2_el3_plat_arch_setup(void)
 
 	setup_page_tables(bl_regions, agilex_plat_mmap);
 
-	enable_mmu_el3(0);
+	/*
+	 * TODO: mmu enable in latest phase
+	 */
+	// enable_mmu_el3(0);
 
 	dw_mmc_params_t params = EMMC_INIT_PARAMS(0x100000, get_mmc_clk());
 
@@ -122,15 +129,20 @@ void bl2_el3_plat_arch_setup(void)
 
 	switch (boot_source) {
 	case BOOT_SOURCE_SDMMC:
+		NOTICE("SDMMC boot\n");
 		dw_mmc_init(&params, &mmc_info);
-		socfpga_io_setup(boot_source);
+		socfpga_io_setup(boot_source, PLAT_SDMMC_DATA_BASE);
 		break;
 
 	case BOOT_SOURCE_QSPI:
+		NOTICE("QSPI boot\n");
 		cad_qspi_init(0, QSPI_CONFIG_CPHA, QSPI_CONFIG_CPOL,
 			QSPI_CONFIG_CSDA, QSPI_CONFIG_CSDADS,
 			QSPI_CONFIG_CSEOT, QSPI_CONFIG_CSSOT, 0);
-		socfpga_io_setup(boot_source);
+		if (ros_qspi_get_ssbl_offset(&offset) != ROS_RET_OK) {
+			offset = PLAT_QSPI_DATA_BASE;
+		}
+		socfpga_io_setup(boot_source, offset);
 		break;
 
 	default:
@@ -168,6 +180,21 @@ int bl2_plat_handle_post_image_load(unsigned int image_id)
 
 	assert(bl_mem_params);
 
+#if SOCFPGA_SECURE_VAB_AUTH
+	/*
+	 * VAB Authentication start here.
+	 * If failed to authenticate, shall not proceed to process BL31 and hang.
+	 */
+	int ret = 0;
+
+	ret = socfpga_vab_init(image_id);
+	if (ret < 0) {
+		ERROR("SOCFPGA VAB Authentication failed\n");
+		while (1)
+			wfi();
+	}
+#endif
+
 	switch (image_id) {
 	case BL33_IMAGE_ID:
 		bl_mem_params->ep_info.args.arg0 = 0xffff & read_mpidr();
@@ -186,4 +213,3 @@ int bl2_plat_handle_post_image_load(unsigned int image_id)
 void bl2_platform_setup(void)
 {
 }
-

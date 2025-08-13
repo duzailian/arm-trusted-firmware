@@ -95,7 +95,7 @@ static void sunxi_pwr_domain_on_finish(const psci_power_state_t *target_state)
 	}
 }
 
-static void __dead2 sunxi_system_off(void)
+static void sunxi_system_off(void)
 {
 	uint32_t ret;
 
@@ -106,11 +106,9 @@ static void __dead2 sunxi_system_off(void)
 	if (ret != SCP_OK) {
 		ERROR("PSCI: SCPI %s failed: %d\n", "shutdown", ret);
 	}
-
-	psci_power_down_wfi();
 }
 
-static void __dead2 sunxi_system_reset(void)
+static void sunxi_system_reset(void)
 {
 	uint32_t ret;
 
@@ -121,8 +119,28 @@ static void __dead2 sunxi_system_reset(void)
 	if (ret != SCP_OK) {
 		ERROR("PSCI: SCPI %s failed: %d\n", "reboot", ret);
 	}
+}
 
-	psci_power_down_wfi();
+static int sunxi_system_reset2(int is_vendor, int reset_type, u_register_t cookie)
+{
+	uint32_t ret;
+
+	if (is_vendor || (reset_type != PSCI_RESET2_SYSTEM_WARM_RESET))
+		return PSCI_E_NOT_SUPPORTED;
+
+	gicv2_cpuif_disable();
+
+	/* Send the system reset request to the SCP. */
+	ret = scpi_sys_power_state(scpi_system_reset);
+	if (ret != SCP_OK) {
+		ERROR("PSCI: SCPI %s failed: %d\n", "reset", ret);
+		return PSCI_E_INVALID_PARAMS;
+	}
+
+	/*
+	 * Continue to core powerdown
+	 */
+	return PSCI_E_SUCCESS;
 }
 
 static int sunxi_validate_power_state(unsigned int power_state,
@@ -177,6 +195,7 @@ static const plat_psci_ops_t sunxi_scpi_psci_ops = {
 	.pwr_domain_suspend_finish	= sunxi_pwr_domain_on_finish,
 	.system_off			= sunxi_system_off,
 	.system_reset			= sunxi_system_reset,
+	.system_reset2			= sunxi_system_reset2,
 	.validate_power_state		= sunxi_validate_power_state,
 	.validate_ns_entrypoint		= sunxi_validate_ns_entrypoint,
 	.get_sys_suspend_power_state	= sunxi_get_sys_suspend_power_state,

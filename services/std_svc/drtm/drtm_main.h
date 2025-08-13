@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022 Arm Limited. All rights reserved.
+ * Copyright (c) 2022-2025 Arm Limited. All rights reserved.
  *
  * SPDX-License-Identifier:    BSD-3-Clause
  *
@@ -37,10 +37,15 @@
 		(((a)->dlme_paddr + (a)->dlme_img_off + (a)->dlme_img_ep_off))
 
 /*
+ * Minimum size of Event Log in DLME data (64 KiB)
+ */
+#define ARM_DRTM_MIN_EVENT_LOG_SIZE	U(0x10000)
+
+/*
  * Range(Min/Max) of DRTM parameter structure versions supported
  */
 #define ARM_DRTM_PARAMS_MIN_VERSION	U(1)
-#define ARM_DRTM_PARAMS_MAX_VERSION	U(1)
+#define ARM_DRTM_PARAMS_MAX_VERSION	U(2)
 
 enum drtm_dlme_el {
 	DLME_AT_EL1 = MODE_EL1,
@@ -55,6 +60,12 @@ enum drtm_retc {
 	NOT_FOUND = -4,
 	INTERNAL_ERROR = -5,
 	MEM_PROTECT_INVALID = -6,
+	COPROCESSOR_ERROR = -7,
+	OUT_OF_RESOURCE = -8,
+	INVALID_DATA = -9,
+	SECONDARY_PE_NOT_OFF = -10,
+	ALREADY_CLOSED = -11,
+	TPM_ERROR = -12
 };
 
 typedef struct {
@@ -63,6 +74,7 @@ typedef struct {
 	uint64_t dma_prot_features;
 	uint64_t boot_pe_id;
 	uint64_t tcb_hash_features;
+	uint64_t dlme_image_auth_features;
 } drtm_features_t;
 
 struct __packed drtm_dl_args_v1 {
@@ -89,6 +101,7 @@ struct __packed dlme_data_header_v1 {
 	uint64_t dlme_addr_map_size;
 	uint64_t dlme_tpm_log_size;
 	uint64_t dlme_tcb_hashes_table_size;
+	uint64_t dlme_acpi_tables_region_size;
 	uint64_t dlme_impdef_region_size;
 } __aligned(__alignof(uint16_t /* First member's type, `uint16_t version'. */));
 

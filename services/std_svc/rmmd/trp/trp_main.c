@@ -1,9 +1,10 @@
 /*
- * Copyright (c) 2021-2022, Arm Limited and Contributors. All rights reserved.
+ * Copyright (c) 2021-2025, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include <common/build_message.h>
 #include <common/debug.h>
 #include <plat/common/platform.h>
 #include <services/rmm_core_manifest.h>
@@ -13,6 +14,27 @@
 #include "trp_private.h"
 
 #include <platform_def.h>
+
+#define RMI_ERROR_REALM			2U
+#define RMI_ERROR_NOT_SUPPORTED		6U
+
+#define DIR_BIT_SHIFT			0x8
+#define KEYSET_SHIFT			0xC
+#define	STREAM_ID_MASK			0xFF
+#define STREAM_ID_SHIFT			0x0
+#define SUBSTREAM_MASK			0x7
+#define SUBSTREAM_SHIFT			0x8
+
+#define KEY_SET				0x0
+#define	DIR_VAL				0x0
+#define	SUBSTREAM_VAL			0x1
+#define	STREAM_ID			0x1
+
+#define ENCODE_STREAM_INFO(key, dir, substream, stream_id)			\
+		(((key & 0x1) << KEYSET_SHIFT) |				\
+		((dir & 0x1) << DIR_BIT_SHIFT) |				\
+		((substream && SUBSTREAM_MASK) << SUBSTREAM_SHIFT) |		\
+		((stream_id && STREAM_ID_MASK) << STREAM_ID_SHIFT))
 
 /* Parameters received from the previous image */
 static unsigned int trp_boot_abi_version;
@@ -86,7 +108,7 @@ int trp_validate_warmboot_args(uint64_t x0, uint64_t x1,
 /* Main function for TRP */
 void trp_main(void)
 {
-	NOTICE("TRP: %s\n", version_string);
+	NOTICE("TRP: %s\n", build_version_string);
 	NOTICE("TRP: %s\n", build_message);
 	NOTICE("TRP: Supported RMM-EL3 Interface ABI: v.%u.%u\n",
 		TRP_RMM_EL3_ABI_VERS_MAJOR, TRP_RMM_EL3_ABI_VERS_MINOR);
@@ -106,11 +128,18 @@ void trp_main(void)
 /*******************************************************************************
  * Returning RMI version back to Normal World
  ******************************************************************************/
-static void trp_ret_rmi_version(struct trp_smc_result *smc_ret)
+static void trp_ret_rmi_version(unsigned long long rmi_version,
+				struct trp_smc_result *smc_ret)
 {
+	if (rmi_version != RMI_ABI_VERSION) {
+		smc_ret->x[0] = RMI_ERROR_INPUT;
+	} else {
+		smc_ret->x[0] = RMI_SUCCESS;
+	}
 	VERBOSE("RMM version is %u.%u\n", RMI_ABI_VERSION_MAJOR,
 					  RMI_ABI_VERSION_MINOR);
-	smc_ret->x[0] = RMI_ABI_VERSION;
+	smc_ret->x[1] = RMI_ABI_VERSION;
+	smc_ret->x[2] = RMI_ABI_VERSION;
 }
 
 /*******************************************************************************
@@ -121,7 +150,7 @@ static void trp_asc_mark_realm(unsigned long long x1,
 {
 	VERBOSE("Delegating granule 0x%llx\n", x1);
 	smc_ret->x[0] = trp_smc(set_smc_args(RMM_GTSI_DELEGATE, x1,
-						0UL, 0UL, 0UL, 0UL, 0UL, 0UL));
+				0UL, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL));
 
 	if (smc_ret->x[0] != 0ULL) {
 		ERROR("Granule transition from NON-SECURE type to REALM type "
@@ -137,12 +166,68 @@ static void trp_asc_mark_nonsecure(unsigned long long x1,
 {
 	VERBOSE("Undelegating granule 0x%llx\n", x1);
 	smc_ret->x[0] = trp_smc(set_smc_args(RMM_GTSI_UNDELEGATE, x1,
-						0UL, 0UL, 0UL, 0UL, 0UL, 0UL));
+				0UL, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL));
 
 	if (smc_ret->x[0] != 0ULL) {
 		ERROR("Granule transition from REALM type to NON-SECURE type "
 			"failed 0x%llx\n", smc_ret->x[0]);
 	}
+}
+
+/*******************************************************************************
+ * Test the IDE Key management interface
+ ******************************************************************************/
+static void trp_ide_keymgmt_interface_fn(unsigned long long x1, unsigned long long x2,
+					struct trp_smc_result *smc_ret)
+{
+	uint64_t ecam_address = 0U, rp_id = 0U, ide_stream_info;
+	uint64_t keyqw0, keyqw1, keyqw2, keyqw3;
+	uint64_t ifvqw0, ifvqw1;
+	int return_value;
+
+#if RMMD_ENABLE_IDE_KEY_PROG
+	trp_get_test_rootport(&ecam_address, &rp_id);
+#endif /* RMMD_ENABLE_IDE_KEY_PROG */
+	/*
+	 * Dummy values for testing:
+	 * Key set = 0x0
+	 * Dir = 0x0
+	 * Substream = 0x1
+	 * Stream ID = 0x1
+	 */
+	ide_stream_info  = ENCODE_STREAM_INFO(KEY_SET, DIR_VAL, SUBSTREAM_VAL, STREAM_ID);
+
+	/* Dummy key and IV values for testing */
+	keyqw0 = 0xA1B2C3D4E5F60708;
+	keyqw1 = 0x1122334455667788;
+	keyqw2 = 0xDEADBEEFCAFEBABE;
+	keyqw3 = 0x1234567890ABCDEF;
+	ifvqw0 = 0xABCDEF0123456789;
+	ifvqw1 = 0x9876543210FEDCBA;
+
+	return_value = trp_smc(set_smc_args(RMM_IDE_KEY_PROG, ecam_address, rp_id,
+				ide_stream_info, keyqw0, keyqw1, keyqw2, keyqw3, ifvqw0,
+				ifvqw1, 0UL, 0UL));
+
+	INFO("return value from RMM_IDE_KEY_PROG = %d\n", return_value);
+
+	return_value = trp_smc(set_smc_args(RMM_IDE_KEY_SET_GO, ecam_address, rp_id,
+				ide_stream_info, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL));
+
+	INFO("return value from RMM_IDE_KEY_SET_GO = %d\n", return_value);
+
+	return_value = trp_smc(set_smc_args(RMM_IDE_KEY_SET_STOP, ecam_address, rp_id,
+				ide_stream_info, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL));
+
+	INFO("return value from RMM_IDE_KEY_SET_STOP = %d\n", return_value);
+
+	return_value = trp_smc(set_smc_args(RMM_IDE_KM_PULL_RESPONSE, ecam_address, rp_id,
+				0UL, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL, 0UL));
+
+	INFO("return value from RMM_IDE_KEY_SET_STOP = %d\n", return_value);
+
+	smc_ret->x[0] = RMI_ERROR_NOT_SUPPORTED;
+
 }
 
 /*******************************************************************************
@@ -163,13 +248,16 @@ void trp_rmi_handler(unsigned long fid,
 
 	switch (fid) {
 	case RMI_RMM_REQ_VERSION:
-		trp_ret_rmi_version(smc_ret);
+		trp_ret_rmi_version(x1, smc_ret);
 		break;
 	case RMI_RMM_GRANULE_DELEGATE:
 		trp_asc_mark_realm(x1, smc_ret);
 		break;
 	case RMI_RMM_GRANULE_UNDELEGATE:
 		trp_asc_mark_nonsecure(x1, smc_ret);
+		break;
+	case RMI_RMM_PDEV_CREATE:
+		trp_ide_keymgmt_interface_fn(x1, x2, smc_ret);
 		break;
 	default:
 		ERROR("Invalid SMC code to %s, FID %lx\n", __func__, fid);

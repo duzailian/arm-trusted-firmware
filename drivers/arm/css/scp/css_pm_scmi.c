@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2022, Arm Limited and Contributors. All rights reserved.
+ * Copyright (c) 2017-2025, Arm Limited and Contributors. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -298,7 +298,7 @@ static void css_raise_pwr_down_interrupt(u_register_t mpidr)
 #endif
 }
 
-void __dead2 css_scp_system_off(int state)
+void css_scp_system_off(int state)
 {
 	int ret;
 
@@ -309,10 +309,11 @@ void __dead2 css_scp_system_off(int state)
 	 */
 	mmio_write_64(PLAT_ARM_TRUSTED_MAILBOX_BASE, 0U);
 
+	unsigned int core_pos = plat_my_core_pos();
 	/*
 	 * Send powerdown request to online secondary core(s)
 	 */
-	ret = psci_stop_other_cores(0, css_raise_pwr_down_interrupt);
+	ret = psci_stop_other_cores(core_pos, 0, css_raise_pwr_down_interrupt);
 	if (ret != PSCI_E_SUCCESS) {
 		ERROR("Failed to powerdown secondary core(s)\n");
 	}
@@ -321,8 +322,8 @@ void __dead2 css_scp_system_off(int state)
 	 * Disable GIC CPU interface to prevent pending interrupt from waking
 	 * up the AP from WFI.
 	 */
-	plat_arm_gic_cpuif_disable();
-	plat_arm_gic_redistif_off();
+	gic_cpuif_disable(core_pos);
+	gic_pcpu_off(core_pos);
 
 	/*
 	 * Issue SCMI command. First issue a graceful
@@ -339,16 +340,13 @@ void __dead2 css_scp_system_off(int state)
 	}
 
 	/* Powerdown of primary core */
-	psci_pwrdown_cpu(PLAT_MAX_PWR_LVL);
-	wfi();
-	ERROR("CSS set power state: operation not handled.\n");
-	panic();
+	psci_pwrdown_cpu_start(PLAT_MAX_PWR_LVL);
 }
 
 /*
  * Helper function to shutdown the system via SCMI.
  */
-void __dead2 css_scp_sys_shutdown(void)
+void css_scp_sys_shutdown(void)
 {
 	css_scp_system_off(SCMI_SYS_PWR_SHUTDOWN);
 }
@@ -356,7 +354,7 @@ void __dead2 css_scp_sys_shutdown(void)
 /*
  * Helper function to reset the system via SCMI.
  */
-void __dead2 css_scp_sys_reboot(void)
+void css_scp_sys_reboot(void)
 {
 	css_scp_system_off(SCMI_SYS_PWR_COLD_RESET);
 }
@@ -472,12 +470,8 @@ int css_system_reset2(int is_vendor, int reset_type, u_register_t cookie)
 		return PSCI_E_INVALID_PARAMS;
 
 	css_scp_system_off(SCMI_SYS_PWR_WARM_RESET);
-	/*
-	 * css_scp_system_off cannot return (it is a __dead function),
-	 * but css_system_reset2 has to return some value, even in
-	 * this case.
-	 */
-	return 0;
+	/* return SUCCESS to finish the powerdown */
+	return PSCI_E_SUCCESS;
 }
 
 #if PROGRAMMABLE_RESET_ADDRESS

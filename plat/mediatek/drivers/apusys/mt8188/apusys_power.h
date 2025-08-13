@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, MediaTek Inc. All rights reserved.
+ * Copyright (c) 2023-2024, MediaTek Inc. All rights reserved.
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
@@ -27,6 +27,16 @@ enum APU_ARE_ID {
 enum APU_D4_SLV_CTRL {
 	D4_SLV_OFF = 0,
 	D4_SLV_ON,
+};
+
+enum APU_BACKUP_RESTORE_CTRL {
+	APU_CTRL_BACKUP		= 0,
+	APU_CTRL_RESTORE	= 1,
+};
+
+struct apu_restore_data {
+	uint32_t reg;
+	uint32_t data;
 };
 
 #define APU_POLL_STEP_US			(5)
@@ -232,7 +242,5 @@ enum APU_D4_SLV_CTRL {
 #define CG_CLR					(0xffffffff)
 
 int apusys_power_init(void);
-int apusys_kernel_apusys_pwr_top_on(void);
-int apusys_kernel_apusys_pwr_top_off(void);
 
 #endif /* APUSYS_POWER_H */
