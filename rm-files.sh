@@ -5,7 +5,7 @@ chmod 777 ./build.sh ./rm-files.py
 
 make distclean
 
-bear -- ./build.sh
+# bear -- ./build.sh
 ./rm-files.py compile_commands.json
 
 
@@ -35,3 +35,15 @@ git checkout include/lib/pmf/aarch64/pmf_asm_macros.S
 git checkout bl31/bl31.ld.S
 git checkout plat/arm/board/fvp/include/plat.ld.S
 git checkout include/lib/cpus/aarch64/cpu_macros.S
+
+
+# 删除plat目录下除arm和common之外的所有文件夹
+find plat -mindepth 1 -maxdepth 1 -type d ! -name 'arm' ! -name 'common' -exec rm -rf {} +
+
+rm -rf  drivers/st/ drivers/marvell/ drivers/brcm/ drivers/allwinner/ drivers/nxp/ drivers/ti/ drivers/amlogic/ drivers/renesas/
+
+# 删除plat/arm/board/目录下除fvp和common之外的所有文件夹
+find plat/arm/board/  -mindepth 1 -maxdepth 1 -type d ! -name 'fvp' ! -name 'common' -exec rm -rf {} +
+
+find include/plat/  -mindepth 1 -maxdepth 1 -type d ! -name 'arm' ! -name 'common' -exec rm -rf {} +
+fd "^aarch32$" -x rm  -rf
