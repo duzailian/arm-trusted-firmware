@@ -1,0 +1,54 @@
+{
+	"files": [
+		{
+			"path": "include/lib/cpus/aarch64/cpu_macros.S",
+			"bookmarks": [
+				{
+					"line": 161,
+					"column": 10,
+					"label": "cpu_ops结构体"
+				}
+			]
+		},
+		{
+			"path": "common/runtime_svc.c",
+			"bookmarks": [
+				{
+					"line": 93,
+					"column": 1,
+					"label": "运行时服务初始化"
+				}
+			]
+		},
+		{
+			"path": "include/common/runtime_svc.h",
+			"bookmarks": [
+				{
+					"line": 80,
+					"column": 17,
+					"label": "注册运行时服务的宏定义"
+				}
+			]
+		},
+		{
+			"path": "bl31/aarch64/runtime_exceptions.S",
+			"bookmarks": [
+				{
+					"line": 420,
+					"column": 30,
+					"label": "调用运行时服务处理函数的汇编入口"
+				}
+			]
+		},
+		{
+			"path": "include/lib/smccc.h",
+			"bookmarks": [
+				{
+					"line": 83,
+					"column": 12,
+					"label": "各服务的OEN定义"
+				}
+			]
+		}
+	]
+}
