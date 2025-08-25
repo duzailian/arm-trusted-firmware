@@ -70,6 +70,14 @@ typedef struct rt_svc_desc {
 /*
  * Convenience macros to declare a service descriptor
  */
+/*
+将一个运行时服务的信息放入特定段中
+_start: oen 起始值
+_end: oen 结束值
+_type: 服务类型
+_setup: 初始化接口
+_smch: 服务处理接口
+*/
 #define DECLARE_RT_SVC(_name, _start, _end, _type, _setup, _smch)	\
 	static const rt_svc_desc_t __svc_desc_ ## _name			\
 		__section(".rt_svc_descs") __used = {			\
@@ -105,6 +113,7 @@ CASSERT(RT_SVC_DESC_HANDLE == __builtin_offsetof(rt_svc_desc_t, handle),
  * array. The entry contains the index of the service descriptor in the
  * 'rt_svc_descs' array.
  */
+/*通过组合oen和call_type作为返回值*/
 static inline uint32_t get_unique_oen(uint32_t oen, uint32_t call_type)
 {
 	return ((call_type & FUNCID_TYPE_MASK) << FUNCID_OEN_WIDTH) |
@@ -128,8 +137,8 @@ static inline uint32_t get_unique_oen_from_smc_fid(uint32_t fid)
 void runtime_svc_init(void);
 uintptr_t handle_runtime_svc(uint32_t smc_fid, void *cookie, void *handle,
 						unsigned int flags);
-IMPORT_SYM(uintptr_t, __RT_SVC_DESCS_START__,		RT_SVC_DESCS_START);
-IMPORT_SYM(uintptr_t, __RT_SVC_DESCS_END__,		RT_SVC_DESCS_END);
+IMPORT_SYM(uintptr_t, __RT_SVC_DESCS_START__,		RT_SVC_DESCS_START);// 声明__RT_SVC_DESCS_START__符号并定义RT_SVC_DESCS_START变量存放其首地址
+IMPORT_SYM(uintptr_t, __RT_SVC_DESCS_END__,		RT_SVC_DESCS_END);// 声明__RT_SVC_DESCS_END__符号并定义RT_SVC_DESCS_END变量存放其首地址
 void init_crash_reporting(void);
 
 extern uint8_t rt_svc_descs_indices[MAX_RT_SVCS];

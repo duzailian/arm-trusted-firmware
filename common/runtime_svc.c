@@ -20,7 +20,7 @@
  * 'rt_svc_descs_indices' array. This gives the index of the descriptor in the
  * 'rt_svc_descs' array which contains the SMC handler.
  ******************************************************************************/
-uint8_t rt_svc_descs_indices[MAX_RT_SVCS];
+uint8_t rt_svc_descs_indices[MAX_RT_SVCS];// 保存运行时服务信息在链接脚本中相对位置的索引的数组
 
 #define RT_SVC_DECS_NUM		((RT_SVC_DESCS_END - RT_SVC_DESCS_START)\
 					/ sizeof(rt_svc_desc_t))
@@ -29,6 +29,7 @@ uint8_t rt_svc_descs_indices[MAX_RT_SVCS];
  * Function to invoke the registered `handle` corresponding to the smc_fid in
  * AArch32 mode.
  ******************************************************************************/
+ /*AArch32模式下调用运行时服务函数*/
 uintptr_t handle_runtime_svc(uint32_t smc_fid,
 			     void *cookie,
 			     void *handle,
@@ -58,6 +59,9 @@ uintptr_t handle_runtime_svc(uint32_t smc_fid,
 /*******************************************************************************
  * Simple routine to sanity check a runtime service descriptor before using it
  ******************************************************************************/
+ /*
+ 检查参数合法性
+ */
 static int32_t validate_rt_svc_desc(const rt_svc_desc_t *desc)
 {
 	if (desc == NULL) {
@@ -87,6 +91,9 @@ static int32_t validate_rt_svc_desc(const rt_svc_desc_t *desc)
  * The unique oen is used as an index into the 'rt_svc_descs_indices' array.
  * The index of the runtime service descriptor is stored at this index.
  ******************************************************************************/
+ /*
+ 遍历所有已注册的运行时服务，并执行初始化操作
+ */
 void __init runtime_svc_init(void)
 {
 	int rc = 0;
@@ -98,13 +105,13 @@ void __init runtime_svc_init(void)
 			(RT_SVC_DECS_NUM < MAX_RT_SVCS));
 
 	/* If no runtime services are implemented then simply bail out */
-	if (RT_SVC_DECS_NUM == 0U) {
+	if (RT_SVC_DECS_NUM == 0U) {// 没有已注册的运行时服务
 		return;
 	}
 	/* Initialise internal variables to invalid state */
 	(void)memset(rt_svc_descs_indices, -1, sizeof(rt_svc_descs_indices));
 
-	rt_svc_descs = (rt_svc_desc_t *) RT_SVC_DESCS_START;
+	rt_svc_descs = (rt_svc_desc_t *) RT_SVC_DESCS_START; //获取 __RT_SVC_DESCS_START__符号的地址
 	for (index = 0U; index < RT_SVC_DECS_NUM; index++) {
 		rt_svc_desc_t *service = &rt_svc_descs[index];
 
@@ -113,6 +120,7 @@ void __init runtime_svc_init(void)
 		 * difficult to predict the system behaviour in the absence
 		 * of this service.
 		 */
+         /*检查参数合法性*/
 		rc = validate_rt_svc_desc(service);
 		if (rc != 0) {
 			ERROR("Invalid runtime service descriptor %p\n",
@@ -128,7 +136,7 @@ void __init runtime_svc_init(void)
 		 * routine for this runtime service, if it is defined.
 		 */
 		if (service->init != NULL) {
-			rc = service->init();
+			rc = service->init();// 调用服务初始化函数
 			if (rc != 0) {
 				ERROR("Error initializing runtime service %s\n",
 						service->name);
@@ -142,6 +150,7 @@ void __init runtime_svc_init(void)
 		 * descriptor which will handle the SMCs for this owning
 		 * entity range.
 		 */
+         /*组合oen和type作为rt_svc_descs_indices数组的索引*/
 		start_idx = (uint8_t)get_unique_oen(service->start_oen,
 						    service->call_type);
 		end_idx = (uint8_t)get_unique_oen(service->end_oen,
@@ -149,7 +158,7 @@ void __init runtime_svc_init(void)
 		assert(start_idx <= end_idx);
 		assert(end_idx < MAX_RT_SVCS);
 		for (; start_idx <= end_idx; start_idx++) {
-			rt_svc_descs_indices[start_idx] = index;
+			rt_svc_descs_indices[start_idx] = index; // 保存索引
 		}
 	}
 }

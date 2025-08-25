@@ -218,6 +218,9 @@
  * Import an assembly or linker symbol as a C expression with the specified
  * type
  */
+/*
+导入lds中定义的符号sym,并定义名为name的变量存放sym的起始地址
+*/
 #define IMPORT_SYM(type, sym, name) \
 	extern char sym[];\
 	static const __attribute__((unused)) type name = (type) sym;

@@ -81,6 +81,7 @@
  * Owning entity number definitions inside the function id as per the SMC
  * calling convention
  ******************************************************************************/
+ /*各运行时服务的OEN定义*/
 #define OEN_ARM_START			U(0)
 #define OEN_ARM_END			U(0)
 #define OEN_CPU_START			U(1)

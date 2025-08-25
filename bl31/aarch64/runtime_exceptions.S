@@ -419,16 +419,21 @@ sync_handler64:
 	bic	x0, x0, #(FUNCID_SVE_HINT_MASK << FUNCID_SVE_HINT_SHIFT)
 
 	/* Get the unique owning entity number */
-	ubfx	x16, x0, #FUNCID_OEN_SHIFT, #FUNCID_OEN_WIDTH
-	ubfx	x15, x0, #FUNCID_TYPE_SHIFT, #FUNCID_TYPE_WIDTH
-	orr	x16, x16, x15, lsl #FUNCID_OEN_WIDTH
+    /*以下代码片段对应的c函数为:get_unique_oen()*/
+	ubfx	x16, x0, #FUNCID_OEN_SHIFT, #FUNCID_OEN_WIDTH // 截取x0中的FUNCID_OEN_SHIFT位最为lsb开始,FUNCID_OEN_WIDTH为位宽的数据写入x16中
+	ubfx	x15, x0, #FUNCID_TYPE_SHIFT, #FUNCID_TYPE_WIDTH// 截取x0中的FUNCID_TYPE_SHIFT位最为lsb开始,FUNCID_TYPE_WIDTH为位宽的数据写入x15中
+	orr	x16, x16, x15, lsl #FUNCID_OEN_WIDTH // x16 |= x15 << FUNCID_OEN_WIDTH (此语句之后x16可作为rt_svc_descs_indices的索引)
 
 	/* Load descriptor index from array of indices */
 	adrp	x14, rt_svc_descs_indices
-	add	x14, x14, :lo12:rt_svc_descs_indices
-	ldrb	w15, [x14, x16]
+	add	x14, x14, :lo12:rt_svc_descs_indices // 凑出rt_svc_descs_indices的地址并写入x14
+	ldrb	w15, [x14, x16] // 取出x14(rt_svc_descs_indices 数组)中与x16对应的项，并写入 w15
 
 	/* Any index greater than 127 is invalid. Check bit 7. */
+    /*
+    rt_svc_descs_indices数组中的所有元素默认全部被初始化为-1,
+    w15的bit7是否为1表示该服务未注册
+    */
 	tbnz	w15, 7, smc_unknown
 
 	/*
@@ -437,9 +442,9 @@ sync_handler64:
 	 *
 	 * handler = (base + off) + (index << log2(size))
 	 */
-	adr_l	x11, (__RT_SVC_DESCS_START__ + RT_SVC_DESC_HANDLE)
-	lsl	w10, w15, #RT_SVC_SIZE_LOG2
-	ldr	x15, [x11, w10, uxtw]
+	adr_l	x11, (__RT_SVC_DESCS_START__ + RT_SVC_DESC_HANDLE) // x11 存放handler所在相对位置(第0个服务的绝对地址)
+	lsl	w10, w15, #RT_SVC_SIZE_LOG2  // w10 = w15 << RT_SVC_SIZE_LOG2，加上服务序号对应的偏移地址
+	ldr	x15, [x11, w10, uxtw] //  获取服务对应的handler放入x15寄存器
 
 	/*
 	 * Call the Secure Monitor Call handler and then drop directly into
@@ -449,7 +454,7 @@ sync_handler64:
 #if DEBUG
 	cbz	x15, rt_svc_fw_critical_error
 #endif
-	blr	x15
+	blr	x15 // 执行处理函数
 
 	b	el3_exit
 
@@ -491,6 +496,7 @@ sysreg_handler64:
 	bl	inject_undef64
 	b	el3_exit
 
+/*未注册的SMC服务的处理*/
 smc_unknown:
 	/*
 	 * Unknown SMC call. Populate return value with SMC_UNK and call
