@@ -23,7 +23,7 @@
 uint8_t rt_svc_descs_indices[MAX_RT_SVCS];// 保存运行时服务信息在链接脚本中相对位置的索引的数组
 
 #define RT_SVC_DECS_NUM		((RT_SVC_DESCS_END - RT_SVC_DESCS_START)\
-					/ sizeof(rt_svc_desc_t))
+					/ sizeof(rt_svc_desc_t))/*单位:字节数，计算注册的运行时服务数*/
 
 /*******************************************************************************
  * Function to invoke the registered `handle` corresponding to the smc_fid in
@@ -102,13 +102,14 @@ void __init runtime_svc_init(void)
 
 	/* Assert the number of descriptors detected are less than maximum indices */
 	assert((RT_SVC_DESCS_END >= RT_SVC_DESCS_START) &&
-			(RT_SVC_DECS_NUM < MAX_RT_SVCS));
+			(RT_SVC_DECS_NUM < MAX_RT_SVCS));/*判断链接脚本导出描述符区间是否合法，服务数最大为128*/
 
 	/* If no runtime services are implemented then simply bail out */
 	if (RT_SVC_DECS_NUM == 0U) {// 没有已注册的运行时服务
 		return;
 	}
 	/* Initialise internal variables to invalid state */
+	/*将服务索引数组成员全部初始化为FF,避免随机值导致误用，void显式忽略返回值*/
 	(void)memset(rt_svc_descs_indices, -1, sizeof(rt_svc_descs_indices));
 
 	rt_svc_descs = (rt_svc_desc_t *) RT_SVC_DESCS_START; //获取 __RT_SVC_DESCS_START__符号的地址
@@ -125,7 +126,7 @@ void __init runtime_svc_init(void)
 		if (rc != 0) {
 			ERROR("Invalid runtime service descriptor %p\n",
 				(void *) service);
-			panic();
+			panic();/*非法描述符一个都不允许存在，后续调进来会死机，直接崩溃*/
 		}
 
 		/*
@@ -140,7 +141,7 @@ void __init runtime_svc_init(void)
 			if (rc != 0) {
 				ERROR("Error initializing runtime service %s\n",
 						service->name);
-				continue;
+				continue;/*初始化失败不影响下一次迭代，continue关键字跳过当前循环的剩余部分*/
 			}
 		}
 
@@ -152,7 +153,7 @@ void __init runtime_svc_init(void)
 		 */
          /*组合oen和type作为rt_svc_descs_indices数组的索引*/
 		start_idx = (uint8_t)get_unique_oen(service->start_oen,
-						    service->call_type);
+						    service->call_type);/*强转为8位满足最大128的需求*/
 		end_idx = (uint8_t)get_unique_oen(service->end_oen,
 						  service->call_type);
 		assert(start_idx <= end_idx);
